@@ -78,7 +78,7 @@ const defaultSettings = Object.freeze({
 
     promptMode: 'profile',
     llmProfileId: '',
-    maxPromptTokens: 400,
+    maxPromptTokens: 700,
     useLlmPreset: false,
 
     i2vWorkflow: '',

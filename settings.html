@@ -1,0 +1,111 @@
+<div class="inline-drawer" id="comfyvideo_settings">
+    <div class="inline-drawer-toggle inline-drawer-header">
+        <b>ComfyVideo – Scene Image → I2V</b>
+        <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+    </div>
+    <div class="inline-drawer-content">
+        <label class="checkbox_label" for="comfyvideo_enabled">
+            <input type="checkbox" id="comfyvideo_enabled" />
+            <span>Enable extension</span>
+        </label>
+
+        <div class="comfyvideo-section-title">Connection</div>
+        <label for="comfyvideo_comfy_url">ComfyUI Host URL</label>
+        <input type="text" id="comfyvideo_comfy_url" class="text_pole" placeholder="http://127.0.0.1:8188" />
+        <div class="comfyvideo-row">
+            <div id="comfyvideo_test_btn" class="menu_button menu_button_icon">
+                <i class="fa-solid fa-plug"></i>
+                <span>Test Connection</span>
+            </div>
+            <span id="comfyvideo_conn_status" class="comfyvideo-status"></span>
+        </div>
+        <small>Uses SillyTavern’s Comfy proxy for generate/ping. Upload for I2V goes directly to ComfyUI <code>/upload/image</code> (may need CORS). Settings are separate from the built-in Image Generation extension.</small>
+
+        <div class="comfyvideo-section-title">LLM prompt builder</div>
+        <label for="comfyvideo_prompt_mode">Prompt mode</label>
+        <select id="comfyvideo_prompt_mode" class="text_pole">
+            <option value="profile">Connection profile (background)</option>
+            <option value="quiet">Quiet gen (current main model)</option>
+            <option value="manual">Manual (no LLM)</option>
+        </select>
+        <label for="comfyvideo_llm_profile">Connection profile</label>
+        <select id="comfyvideo_llm_profile" class="text_pole"></select>
+        <label for="comfyvideo_max_prompt_tokens">Max prompt tokens</label>
+        <input type="number" id="comfyvideo_max_prompt_tokens" class="text_pole" min="32" max="4000" step="1" />
+        <label for="comfyvideo_manual_prompt">Manual image prompt (when mode = Manual)</label>
+        <textarea id="comfyvideo_manual_prompt" class="text_pole"></textarea>
+        <small>Profile mode does not post to chat and does not switch your active ST connection. Pick a dedicated profile (e.g. fast/cheap model) for prompt engineering.</small>
+
+        <div class="comfyvideo-section-title">Image generation (Step 1)</div>
+        <label for="comfyvideo_image_workflow">Image workflow (API JSON)</label>
+        <textarea id="comfyvideo_image_workflow" class="text_pole comfyvideo-workflow" placeholder='Paste ComfyUI API workflow. Placeholders: "%prompt%", "%negative_prompt%", "%seed%", "%width%", "%height%"'></textarea>
+        <div class="comfyvideo-row">
+            <label for="comfyvideo_context_messages">Context messages</label>
+            <input type="number" id="comfyvideo_context_messages" class="text_pole" min="1" max="50" style="width:5em" />
+            <label class="checkbox_label" for="comfyvideo_include_character">
+                <input type="checkbox" id="comfyvideo_include_character" />
+                <span>Character appearance</span>
+            </label>
+            <label class="checkbox_label" for="comfyvideo_confirm_prompt">
+                <input type="checkbox" id="comfyvideo_confirm_prompt" />
+                <span>Confirm prompt</span>
+            </label>
+        </div>
+        <div class="comfyvideo-row">
+            <label for="comfyvideo_image_width">Width</label>
+            <input type="number" id="comfyvideo_image_width" class="text_pole" min="64" max="4096" step="8" style="width:6em" />
+            <label for="comfyvideo_image_height">Height</label>
+            <input type="number" id="comfyvideo_image_height" class="text_pole" min="64" max="4096" step="8" style="width:6em" />
+        </div>
+        <label for="comfyvideo_image_prompt_template">Image prompt template (instructions to the LLM)</label>
+        <textarea id="comfyvideo_image_prompt_template" class="text_pole"></textarea>
+
+        <div class="comfyvideo-section-title">Video generation (Step 2 – I2V)</div>
+        <label for="comfyvideo_i2v_workflow">I2V workflow (API JSON)</label>
+        <textarea id="comfyvideo_i2v_workflow" class="text_pole comfyvideo-workflow" placeholder='Paste I2V API workflow. Use "%image%" for LoadImage filename after upload. Also: "%prompt%", "%negative_prompt%", "%seed%", "%frames%", "%fps%"'></textarea>
+        <div class="comfyvideo-row">
+            <label for="comfyvideo_frames">Frames</label>
+            <input type="number" id="comfyvideo_frames" class="text_pole" min="1" max="256" style="width:5em" />
+            <label for="comfyvideo_fps">FPS</label>
+            <input type="number" id="comfyvideo_fps" class="text_pole" min="1" max="60" style="width:5em" />
+        </div>
+        <label for="comfyvideo_motion_mode">Motion prompt mode</label>
+        <select id="comfyvideo_motion_mode" class="text_pole">
+            <option value="fixed">Fixed</option>
+            <option value="auto">Auto (LLM)</option>
+            <option value="ask">Ask each time</option>
+        </select>
+        <label for="comfyvideo_fixed_motion">Fixed / default motion prompt</label>
+        <textarea id="comfyvideo_fixed_motion" class="text_pole"></textarea>
+        <label for="comfyvideo_seed_mode">Seed mode</label>
+        <select id="comfyvideo_seed_mode" class="text_pole">
+            <option value="random">Random</option>
+            <option value="fixed">Fixed</option>
+        </select>
+        <label for="comfyvideo_fixed_seed">Fixed seed</label>
+        <input type="number" id="comfyvideo_fixed_seed" class="text_pole" />
+        <label for="comfyvideo_negative">Negative prompt</label>
+        <textarea id="comfyvideo_negative" class="text_pole"></textarea>
+        <label for="comfyvideo_image_input_mode">I2V image input</label>
+        <select id="comfyvideo_image_input_mode" class="text_pole">
+            <option value="upload">Comfy upload (recommended)</option>
+            <option value="base64">Base64 placeholder %image_base64%</option>
+        </select>
+
+        <div class="comfyvideo-section-title">Behavior</div>
+        <label for="comfyvideo_attach_image">Attach image as</label>
+        <select id="comfyvideo_attach_image" class="text_pole">
+            <option value="last">Last message</option>
+            <option value="new">New message</option>
+        </select>
+        <label for="comfyvideo_attach_video">Attach video to</label>
+        <select id="comfyvideo_attach_video" class="text_pole">
+            <option value="same">Same message</option>
+            <option value="new">New message</option>
+        </select>
+
+        <div class="comfyvideo-row" style="margin-top:0.75em">
+            <div id="comfyvideo_reset_btn" class="menu_button">Reset to defaults</div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,58 @@
+/* ComfyVideo extension */
+
+#comfyvideo_settings .comfyvideo-section-title {
+    margin-top: 0.75em;
+    margin-bottom: 0.35em;
+    font-weight: 600;
+    opacity: 0.9;
+}
+
+#comfyvideo_settings textarea {
+    min-height: 4.5em;
+    width: 100%;
+    font-family: var(--monoFontFamily, monospace);
+    font-size: 0.9em;
+}
+
+#comfyvideo_settings textarea.comfyvideo-workflow {
+    min-height: 8em;
+}
+
+#comfyvideo_settings .comfyvideo-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em;
+    align-items: center;
+    margin: 0.35em 0;
+}
+
+#comfyvideo_settings .comfyvideo-row label {
+    margin: 0;
+}
+
+#comfyvideo_settings .comfyvideo-status {
+    margin-left: 0.5em;
+    opacity: 0.85;
+}
+
+#comfyvideo_settings .comfyvideo-status.ok {
+    color: var(--SmartThemeQuoteColor, #6c6);
+}
+
+#comfyvideo_settings .comfyvideo-status.err {
+    color: var(--warning, #c66);
+}
+
+/* Per-message I2V button */
+.mes_button.comfyvideo-i2v-btn {
+    cursor: pointer;
+}
+
+.mes_button.comfyvideo-i2v-btn.busy {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+#comfyvideo_wand_button {
+    cursor: pointer;
+}

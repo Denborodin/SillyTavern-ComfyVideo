@@ -1,38 +1,81 @@
 /* ComfyVideo extension */
 
+#comfyvideo_settings .comfyvideo-section {
+    margin-top: 0.85em;
+    padding-top: 0.55em;
+    border-top: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor, #444) 60%, transparent);
+}
+
+#comfyvideo_settings .comfyvideo-section:first-of-type {
+    border-top: none;
+    padding-top: 0.25em;
+}
+
 #comfyvideo_settings .comfyvideo-section-title {
-    margin-top: 0.75em;
-    margin-bottom: 0.35em;
-    font-weight: 600;
+    font-weight: 700;
+    margin-bottom: 0.4em;
+    opacity: 0.95;
+}
+
+#comfyvideo_settings label:not(.checkbox_label) {
+    display: block;
+    margin-top: 0.45em;
+    margin-bottom: 0.15em;
     opacity: 0.9;
 }
 
-#comfyvideo_settings textarea {
-    min-height: 4.5em;
+#comfyvideo_settings .checkbox_label {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    margin: 0.4em 0;
+}
+
+#comfyvideo_settings textarea,
+#comfyvideo_settings input.text_pole,
+#comfyvideo_settings select.text_pole {
     width: 100%;
-    font-family: var(--monoFontFamily, monospace);
-    font-size: 0.9em;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+#comfyvideo_settings textarea {
+    font-family: var(--monoFontFamily, ui-monospace, monospace);
+    font-size: 0.88em;
+    min-height: 3.5em;
 }
 
 #comfyvideo_settings textarea.comfyvideo-workflow {
-    min-height: 8em;
+    min-height: 7em;
 }
 
 #comfyvideo_settings .comfyvideo-row {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5em;
+    gap: 0.5em 0.75em;
     align-items: center;
-    margin: 0.35em 0;
+    margin: 0.4em 0;
 }
 
-#comfyvideo_settings .comfyvideo-row label {
-    margin: 0;
+#comfyvideo_settings .comfyvideo-num {
+    width: 5.5em !important;
+    max-width: 5.5em !important;
+}
+
+#comfyvideo_settings .comfyvideo-hint {
+    margin: 0.35em 0 0.15em;
+    opacity: 0.75;
+    font-size: 0.9em;
+    line-height: 1.35;
+}
+
+#comfyvideo_settings .comfyvideo-hint code {
+    font-size: 0.92em;
 }
 
 #comfyvideo_settings .comfyvideo-status {
-    margin-left: 0.5em;
-    opacity: 0.85;
+    margin-left: 0.25em;
+    opacity: 0.9;
 }
 
 #comfyvideo_settings .comfyvideo-status.ok {
@@ -41,6 +84,10 @@
 
 #comfyvideo_settings .comfyvideo-status.err {
     color: var(--warning, #c66);
+}
+
+#comfyvideo_settings .comfyvideo-actions {
+    margin-top: 0.9em;
 }
 
 /* Per-message I2V button */
@@ -55,4 +102,79 @@
 
 #comfyvideo_wand_button {
     cursor: pointer;
+}
+
+/* Status panel (stop + progress) */
+.comfyvideo-status-panel {
+    position: fixed;
+    right: 1.25rem;
+    bottom: 1.25rem;
+    z-index: 10000;
+    min-width: 280px;
+    max-width: min(420px, 92vw);
+    padding: 0.85rem 1rem;
+    border-radius: 10px;
+    background: var(--SmartThemeBlurTintColor, rgba(30, 30, 36, 0.94));
+    border: 1px solid var(--SmartThemeBorderColor, #555);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+    color: var(--SmartThemeBodyColor, #eee);
+    font-size: 0.95em;
+}
+
+.comfyvideo-status-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75em;
+    margin-bottom: 0.45em;
+}
+
+.comfyvideo-status-panel__title {
+    font-size: 1em;
+}
+
+.comfyvideo-status-panel__stop {
+    flex-shrink: 0;
+    padding: 0.2em 0.55em !important;
+    font-size: 0.85em !important;
+}
+
+.comfyvideo-status-panel__message {
+    opacity: 0.9;
+    margin-bottom: 0.55em;
+    line-height: 1.35;
+    word-break: break-word;
+}
+
+.comfyvideo-status-panel__bar-wrap {
+    height: 8px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--SmartThemeBorderColor, #555) 80%, transparent);
+    overflow: hidden;
+}
+
+.comfyvideo-status-panel__bar {
+    height: 100%;
+    width: 0%;
+    border-radius: 4px;
+    background: var(--SmartThemeQuoteColor, #6af);
+    transition: width 0.2s ease;
+}
+
+.comfyvideo-status-panel__bar.indeterminate {
+    width: 40%;
+    animation: comfyvideo-indet 1.2s ease-in-out infinite;
+}
+
+@keyframes comfyvideo-indet {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(280%); }
+}
+
+.comfyvideo-status-panel__pct {
+    margin-top: 0.3em;
+    font-size: 0.85em;
+    opacity: 0.8;
+    text-align: right;
+    min-height: 1.1em;
 }

@@ -23,7 +23,13 @@ import { callGenericPopup, POPUP_TYPE } from '../../../popup.js';
 import { ConnectionManagerRequestService } from '../../shared.js';
 
 import { createComfyClient } from './lib/comfy-client.js';
-import { parseWorkflow, fillPlaceholders, validateWorkflow, wrapPromptBody } from './lib/workflow.js';
+import {
+    parseWorkflow,
+    fillPlaceholders,
+    validateWorkflow,
+    wrapPromptBody,
+    resolveDimensions,
+} from './lib/workflow.js';
 import { createPromptBuilder } from './lib/prompt-builder.js';
 import {
     attachGeneratedMedia,
@@ -32,42 +38,47 @@ import {
     isComfyVideoMessage,
     isVideoFormat,
 } from './lib/media.js';
+import { showStatus, newClientId, isAbortError } from './lib/status-ui.js';
 
 const MODULE = 'ComfyVideo';
 const LOG = '[ComfyVideo]';
-const EXT_NAME = 'ComfyVideo'; // folder name under third-party / user extensions
+const EXT_NAME = 'ComfyVideo';
 
 const DEFAULT_IMAGE_PROMPT_TEMPLATE =
     'You are an expert image prompt engineer for anime/illustration stills. ' +
     'From the scene context, write ONE detailed image generation prompt: composition, characters, pose, clothing, ' +
-    'expression, lighting, environment, camera angle, art style. Output only the prompt text.';
+    'expression, lighting, environment, camera angle, art style. ' +
+    'Output ONLY the prompt text. No preamble, no quality-tag dumps (masterpiece, best quality, score_9, etc.) ' +
+    'unless the scene clearly needs them.';
 
 const defaultSettings = Object.freeze({
     enabled: true,
     comfyUrl: 'http://127.0.0.1:8188',
 
+    // Shared resolution for image + video
+    resolution: 'portrait', // portrait 768x1344 | landscape 1344x768
+
     imageWorkflow: '',
     contextMessages: 5,
     includeCharacter: true,
     confirmImagePrompt: true,
-    imageWidth: 832,
-    imageHeight: 1216,
     imagePromptTemplate: DEFAULT_IMAGE_PROMPT_TEMPLATE,
 
     promptMode: 'profile',
     llmProfileId: '',
     maxPromptTokens: 400,
     manualImagePrompt: '',
+    useLlmPreset: false,
 
     i2vWorkflow: '',
     frames: 16,
     fps: 8,
     motionPromptMode: 'fixed',
     fixedMotionPrompt: 'subtle natural movement, gentle camera motion',
+    confirmMotionPrompt: true,
     seedMode: 'random',
     fixedSeed: 0,
     negativePrompt: 'blurry, static, low quality, text, watermark',
-    imageInputMode: 'upload',
 
     attachImageMode: 'last',
     attachVideoMode: 'same',
@@ -83,12 +94,22 @@ function getSettings() {
     if (!extension_settings[MODULE]) {
         extension_settings[MODULE] = structuredClone(defaultSettings);
     }
+    const st = extension_settings[MODULE];
     for (const key of Object.keys(defaultSettings)) {
-        if (extension_settings[MODULE][key] === undefined) {
-            extension_settings[MODULE][key] = defaultSettings[key];
+        if (st[key] === undefined) {
+            st[key] = defaultSettings[key];
         }
     }
-    return extension_settings[MODULE];
+    // Migrate legacy free width/height → resolution preset
+    if (!st.resolution) {
+        const w = Number(st.imageWidth);
+        const h = Number(st.imageHeight);
+        st.resolution = (w >= h) ? 'landscape' : 'portrait';
+    }
+    delete st.imageWidth;
+    delete st.imageHeight;
+    delete st.imageInputMode;
+    return st;
 }
 
 function saveSettings() {
@@ -141,7 +162,6 @@ async function loadSettingsHtml() {
     try {
         html = await renderExtensionTemplateAsync(`third-party/${EXT_NAME}`, 'settings');
     } catch {
-        // Fallback: fetch settings.html relative to this extension
         const res = await fetch(`/scripts/extensions/third-party/${EXT_NAME}/settings.html`);
         html = await res.text();
     }
@@ -160,26 +180,26 @@ function bindSettingsUi() {
     const map = [
         ['comfyvideo_enabled', 'enabled', 'checked'],
         ['comfyvideo_comfy_url', 'comfyUrl', 'value'],
+        ['comfyvideo_resolution', 'resolution', 'value'],
         ['comfyvideo_prompt_mode', 'promptMode', 'value'],
         ['comfyvideo_llm_profile', 'llmProfileId', 'value'],
         ['comfyvideo_max_prompt_tokens', 'maxPromptTokens', 'number'],
+        ['comfyvideo_use_llm_preset', 'useLlmPreset', 'checked'],
         ['comfyvideo_manual_prompt', 'manualImagePrompt', 'value'],
         ['comfyvideo_image_workflow', 'imageWorkflow', 'value'],
         ['comfyvideo_context_messages', 'contextMessages', 'number'],
         ['comfyvideo_include_character', 'includeCharacter', 'checked'],
         ['comfyvideo_confirm_prompt', 'confirmImagePrompt', 'checked'],
-        ['comfyvideo_image_width', 'imageWidth', 'number'],
-        ['comfyvideo_image_height', 'imageHeight', 'number'],
         ['comfyvideo_image_prompt_template', 'imagePromptTemplate', 'value'],
         ['comfyvideo_i2v_workflow', 'i2vWorkflow', 'value'],
         ['comfyvideo_frames', 'frames', 'number'],
         ['comfyvideo_fps', 'fps', 'number'],
         ['comfyvideo_motion_mode', 'motionPromptMode', 'value'],
         ['comfyvideo_fixed_motion', 'fixedMotionPrompt', 'value'],
+        ['comfyvideo_confirm_motion', 'confirmMotionPrompt', 'checked'],
         ['comfyvideo_seed_mode', 'seedMode', 'value'],
         ['comfyvideo_fixed_seed', 'fixedSeed', 'number'],
         ['comfyvideo_negative', 'negativePrompt', 'value'],
-        ['comfyvideo_image_input_mode', 'imageInputMode', 'value'],
         ['comfyvideo_attach_image', 'attachImageMode', 'value'],
         ['comfyvideo_attach_video', 'attachVideoMode', 'value'],
     ];
@@ -221,26 +241,26 @@ function applySettingsToUi() {
     };
     set('comfyvideo_enabled', st.enabled, 'checked');
     set('comfyvideo_comfy_url', st.comfyUrl);
+    set('comfyvideo_resolution', st.resolution === 'landscape' ? 'landscape' : 'portrait');
     set('comfyvideo_prompt_mode', st.promptMode);
     set('comfyvideo_llm_profile', st.llmProfileId);
     set('comfyvideo_max_prompt_tokens', st.maxPromptTokens);
+    set('comfyvideo_use_llm_preset', st.useLlmPreset, 'checked');
     set('comfyvideo_manual_prompt', st.manualImagePrompt);
     set('comfyvideo_image_workflow', st.imageWorkflow);
     set('comfyvideo_context_messages', st.contextMessages);
     set('comfyvideo_include_character', st.includeCharacter, 'checked');
     set('comfyvideo_confirm_prompt', st.confirmImagePrompt, 'checked');
-    set('comfyvideo_image_width', st.imageWidth);
-    set('comfyvideo_image_height', st.imageHeight);
     set('comfyvideo_image_prompt_template', st.imagePromptTemplate);
     set('comfyvideo_i2v_workflow', st.i2vWorkflow);
     set('comfyvideo_frames', st.frames);
     set('comfyvideo_fps', st.fps);
-    set('comfyvideo_motion_mode', st.motionPromptMode);
+    set('comfyvideo_motion_mode', st.motionPromptMode === 'auto' ? 'auto' : 'fixed');
     set('comfyvideo_fixed_motion', st.fixedMotionPrompt);
+    set('comfyvideo_confirm_motion', st.confirmMotionPrompt, 'checked');
     set('comfyvideo_seed_mode', st.seedMode);
     set('comfyvideo_fixed_seed', st.fixedSeed);
     set('comfyvideo_negative', st.negativePrompt);
-    set('comfyvideo_image_input_mode', st.imageInputMode);
     set('comfyvideo_attach_image', st.attachImageMode);
     set('comfyvideo_attach_video', st.attachVideoMode);
 }
@@ -270,14 +290,10 @@ async function onTestConnection() {
 }
 
 function addWandButton() {
-    const container = document.getElementById('sd_wand_container')
-        || document.getElementById('extensionsMenu')
-        || document.querySelector('#extensions_menu')
-        || document.getElementById('leftSendForm');
-
-    // Prefer Extensions menu (wand)
     const extensionsMenu = document.getElementById('extensionsMenu');
-    const target = extensionsMenu || container;
+    const target = extensionsMenu
+        || document.getElementById('sd_wand_container')
+        || document.querySelector('#extensions_menu');
     if (!target) {
         console.warn(LOG, 'No menu container for wand button');
         return;
@@ -290,9 +306,6 @@ function addWandButton() {
     btn.title = 'ComfyVideo: Generate Scene Image';
     btn.innerHTML = '<div class="fa-solid fa-clapperboard extensionsMenuExtensionButton"></div><span>Generate Scene Image</span>';
     btn.addEventListener('click', () => {
-        const close = document.getElementById('extensionsMenuButton');
-        // best-effort close menu
-        void close;
         generateSceneImage().catch(err => {
             console.error(LOG, err);
             toastr.error(String(err.message || err), 'ComfyVideo');
@@ -314,6 +327,25 @@ function registerSlashCommands() {
 }
 
 /**
+ * @param {string} title
+ * @param {string} initial
+ * @param {string} okLabel
+ * @returns {Promise<string|null>} null if cancelled
+ */
+async function previewPrompt(title, initial, okLabel) {
+    const edited = await callGenericPopup(
+        title,
+        POPUP_TYPE.INPUT,
+        initial,
+        { okButton: okLabel, cancelButton: 'Cancel', rows: 10, wide: true },
+    );
+    if (edited === false || edited === null || edited === undefined) {
+        return null;
+    }
+    return String(edited).trim();
+}
+
+/**
  * Step 1 – scene image
  */
 async function generateSceneImage() {
@@ -332,33 +364,42 @@ async function generateSceneImage() {
     }
 
     busy = true;
-    const toast = toastr.info('Building image prompt…', 'ComfyVideo', { timeOut: 0, extendedTimeOut: 0 });
+    const dims = resolveDimensions(st.resolution);
+    /** @type {ReturnType<typeof showStatus>|null} */
+    let status = null;
+
     try {
-        let imagePrompt = await prompts.buildImagePrompt(st);
+        status = showStatus({
+            title: 'ComfyVideo',
+            message: 'Building image prompt…',
+            onStop: () => comfy.interrupt(st.comfyUrl),
+        });
+
+        let imagePrompt = await prompts.buildImagePrompt(st, status.signal);
+        if (status.aborted) throw new DOMException('Aborted', 'AbortError');
 
         if (st.confirmImagePrompt) {
-            toastr.clear(toast);
-            const edited = await callGenericPopup(
-                'Edit image prompt, then generate',
-                POPUP_TYPE.INPUT,
-                imagePrompt,
-                { okButton: 'Generate', cancelButton: 'Cancel', rows: 10, wide: true },
-            );
-            // INPUT: string on OK, false on cancel, null on dismiss
-            if (edited === false || edited === null || edited === undefined) {
-                busy = false;
-                return;
-            }
-            imagePrompt = String(edited).trim();
-            if (!imagePrompt) {
+            status.close();
+            status = null;
+            const edited = await previewPrompt('Edit image prompt, then generate', imagePrompt, 'Generate');
+            if (edited === null) return;
+            if (!edited) {
                 toastr.warning('Empty prompt cancelled.');
-                busy = false;
                 return;
             }
+            imagePrompt = edited;
+            status = showStatus({
+                title: 'ComfyVideo',
+                message: 'Generating image in ComfyUI…',
+                onStop: () => comfy.interrupt(st.comfyUrl),
+            });
+        } else {
+            status.setMessage('Generating image in ComfyUI…');
         }
 
-        toastr.clear(toast);
-        const genToast = toastr.info('Generating image in ComfyUI…', 'ComfyVideo', { timeOut: 0, extendedTimeOut: 0 });
+        const clientId = newClientId();
+        status.watchComfy(st.comfyUrl, clientId);
+        status.setProgress(null);
 
         const nodes = parseWorkflow(st.imageWorkflow);
         validateWorkflow(nodes, 'image');
@@ -367,11 +408,14 @@ async function generateSceneImage() {
             prompt: imagePrompt,
             negative_prompt: st.negativePrompt,
             seed,
-            width: st.imageWidth,
-            height: st.imageHeight,
+            width: dims.width,
+            height: dims.height,
         });
-        const body = wrapPromptBody(filled);
-        const result = await comfy.generate(st.comfyUrl, body);
+        const body = wrapPromptBody(filled, clientId);
+        const result = await comfy.generate(st.comfyUrl, body, status.signal);
+
+        status.setMessage('Saving…');
+        status.setProgress(100);
 
         const ctx = getContext();
         const charName = ctx.name2 || 'ComfyVideo';
@@ -388,6 +432,8 @@ async function generateSceneImage() {
                 seed,
                 step: 'image',
                 workflow: 'image',
+                width: dims.width,
+                height: dims.height,
             },
             attachMode: st.attachImageMode === 'new' ? 'new' : 'last',
             appendMediaToMessage,
@@ -397,14 +443,17 @@ async function generateSceneImage() {
             systemUserName,
         });
 
-        toastr.clear(genToast);
         toastr.success('Scene image attached. Use Generate Video on the message for I2V.', 'ComfyVideo');
         injectI2vButtons();
     } catch (e) {
-        console.error(LOG, e);
-        toastr.error(String(e.message || e), 'ComfyVideo');
+        if (isAbortError(e)) {
+            toastr.info('Stopped.', 'ComfyVideo');
+        } else {
+            console.error(LOG, e);
+            toastr.error(String(e.message || e), 'ComfyVideo');
+        }
     } finally {
-        toastr.clear(toast);
+        status?.close();
         busy = false;
     }
 }
@@ -442,25 +491,51 @@ async function generateVideoForMessage(messageId) {
     }
 
     busy = true;
+    const dims = resolveDimensions(st.resolution);
+    /** @type {ReturnType<typeof showStatus>|null} */
+    let status = null;
+
     try {
-        let motionPrompt = await prompts.buildMotionPrompt(st);
-        if (st.motionPromptMode === 'ask') {
-            const edited = await callGenericPopup(
-                'Motion prompt for I2V',
-                POPUP_TYPE.INPUT,
-                motionPrompt,
-                { okButton: 'Generate Video', cancelButton: 'Cancel', rows: 6, wide: true },
-            );
-            if (edited === false || edited === null || edited === undefined) {
-                busy = false;
-                return;
-            }
-            motionPrompt = String(edited).trim() || motionPrompt;
+        status = showStatus({
+            title: 'ComfyVideo I2V',
+            message: 'Preparing motion prompt…',
+            onStop: () => comfy.interrupt(st.comfyUrl),
+        });
+
+        let motionPrompt = await prompts.buildMotionPrompt(st, status.signal);
+        if (status.aborted) throw new DOMException('Aborted', 'AbortError');
+
+        if (st.confirmMotionPrompt) {
+            status.close();
+            status = null;
+            const edited = await previewPrompt('Edit motion prompt, then generate video', motionPrompt, 'Generate Video');
+            if (edited === null) return;
+            motionPrompt = edited || motionPrompt;
+            status = showStatus({
+                title: 'ComfyVideo I2V',
+                message: 'Uploading source image…',
+                onStop: () => comfy.interrupt(st.comfyUrl),
+            });
+        } else {
+            status.setMessage('Uploading source image…');
         }
 
-        const genToast = toastr.info('Preparing I2V (upload + ComfyUI)…', 'ComfyVideo', { timeOut: 0, extendedTimeOut: 0 });
+        const blob = await comfy.fetchImageBlob(imageUrl, status.signal);
+        const uploaded = await comfy.uploadImage(
+            st.comfyUrl,
+            blob,
+            `comfyvideo_${Date.now()}.png`,
+            status.signal,
+        );
+        const imageName = uploaded.subfolder
+            ? `${uploaded.subfolder}/${uploaded.name}`
+            : uploaded.name;
 
-        const blob = await comfy.fetchImageBlob(imageUrl);
+        status.setMessage('Generating video in ComfyUI…');
+        const clientId = newClientId();
+        status.watchComfy(st.comfyUrl, clientId);
+        status.setProgress(null);
+
         const seed = resolveSeed(st);
         /** @type {Record<string, string|number>} */
         const placeholders = {
@@ -469,40 +544,23 @@ async function generateVideoForMessage(messageId) {
             seed,
             frames: st.frames,
             fps: st.fps,
-            width: st.imageWidth,
-            height: st.imageHeight,
+            width: dims.width,
+            height: dims.height,
+            image: imageName,
+            image_name: uploaded.name,
+            image_subfolder: uploaded.subfolder || '',
         };
-
-        if (st.imageInputMode === 'base64') {
-            placeholders.image_base64 = await comfy.blobToBase64(blob);
-            placeholders.image = placeholders.image_base64;
-        } else {
-            // Primary: Comfy upload
-            try {
-                const uploaded = await comfy.uploadImage(st.comfyUrl, blob, `comfyvideo_${Date.now()}.png`);
-                placeholders.image = uploaded.subfolder
-                    ? `${uploaded.subfolder}/${uploaded.name}`
-                    : uploaded.name;
-                placeholders.image_name = uploaded.name;
-                placeholders.image_subfolder = uploaded.subfolder || '';
-            } catch (uploadErr) {
-                console.warn(LOG, 'Upload failed, trying base64 fallback', uploadErr);
-                toastr.warning('Comfy upload failed (CORS?). Falling back to base64.', 'ComfyVideo');
-                placeholders.image_base64 = await comfy.blobToBase64(blob);
-                placeholders.image = placeholders.image_base64;
-            }
-        }
 
         const nodes = parseWorkflow(st.i2vWorkflow);
         const warnings = validateWorkflow(nodes, 'i2v');
         warnings.forEach(w => console.warn(LOG, w));
 
         const filled = fillPlaceholders(nodes, placeholders);
-        const body = wrapPromptBody(filled);
-        toastr.clear(genToast);
-        const runToast = toastr.info('Generating video in ComfyUI…', 'ComfyVideo', { timeOut: 0, extendedTimeOut: 0 });
-        const result = await comfy.generate(st.comfyUrl, body);
-        toastr.clear(runToast);
+        const body = wrapPromptBody(filled, clientId);
+        const result = await comfy.generate(st.comfyUrl, body, status.signal);
+
+        status.setMessage('Saving…');
+        status.setProgress(100);
 
         const charName = ctx.name2 || 'ComfyVideo';
         const filename = `ComfyVideo_I2V_${humanizedDateTime()}`;
@@ -514,6 +572,8 @@ async function generateVideoForMessage(messageId) {
             step: 'i2v',
             frames: st.frames,
             fps: st.fps,
+            width: dims.width,
+            height: dims.height,
         };
 
         if (st.attachVideoMode === 'new') {
@@ -546,16 +606,18 @@ async function generateVideoForMessage(messageId) {
         toastr.success(`${kind} attached.`, 'ComfyVideo');
         injectI2vButtons();
     } catch (e) {
-        console.error(LOG, e);
-        toastr.error(String(e.message || e), 'ComfyVideo');
+        if (isAbortError(e)) {
+            toastr.info('Stopped.', 'ComfyVideo');
+        } else {
+            console.error(LOG, e);
+            toastr.error(String(e.message || e), 'ComfyVideo');
+        }
     } finally {
+        status?.close();
         busy = false;
     }
 }
 
-/**
- * Inject "Generate Video" into message action bars for ComfyVideo-tagged messages.
- */
 function injectI2vButtons() {
     const st = getSettings();
     if (!st.enabled) return;
@@ -602,7 +664,6 @@ function setupMessageHooks() {
             setTimeout(injectI2vButtons, 50);
         });
     }
-    // initial
     setTimeout(injectI2vButtons, 500);
 }
 

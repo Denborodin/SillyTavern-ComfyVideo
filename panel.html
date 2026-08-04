@@ -1,0 +1,81 @@
+<div class="cv_modal_overlay" id="comfyvideo_panel_overlay">
+    <div class="cv_modal" id="comfyvideo_panel" role="dialog" aria-labelledby="comfyvideo_panel_title">
+        <div class="cv_modal_header">
+            <h3 class="cv_modal_title" id="comfyvideo_panel_title">
+                <i class="fa-solid fa-clapperboard"></i>
+                ComfyVideo
+            </h3>
+            <button type="button" class="cv_modal_close" id="comfyvideo_panel_close" title="Close">&times;</button>
+        </div>
+        <div class="cv_modal_body">
+
+            <div class="cv_panel_section">
+                <div class="cv_panel_label">Proportions</div>
+                <div class="cv_seg" id="comfyvideo_panel_resolution" role="group">
+                    <button type="button" class="cv_seg_btn" data-value="portrait" title="768 × 1344">
+                        <i class="fa-solid fa-mobile-screen"></i>
+                        <span>Portrait</span>
+                        <small>768×1344</small>
+                    </button>
+                    <button type="button" class="cv_seg_btn" data-value="landscape" title="1344 × 768">
+                        <i class="fa-solid fa-panorama"></i>
+                        <span>Landscape</span>
+                        <small>1344×768</small>
+                    </button>
+                </div>
+            </div>
+
+            <div class="cv_panel_section">
+                <div class="cv_panel_label">Video length</div>
+                <div class="cv_seg cv_seg_wrap" id="comfyvideo_panel_length" role="group">
+                    <button type="button" class="cv_seg_btn" data-seconds="2" data-fps="8">2s</button>
+                    <button type="button" class="cv_seg_btn" data-seconds="3" data-fps="8">3s</button>
+                    <button type="button" class="cv_seg_btn" data-seconds="4" data-fps="8">4s</button>
+                    <button type="button" class="cv_seg_btn" data-seconds="6" data-fps="8">6s</button>
+                </div>
+                <div class="cv_panel_row cv_panel_custom_len">
+                    <label>Frames <input type="number" id="comfyvideo_panel_frames" class="text_pole cv_num" min="1" max="256" /></label>
+                    <label>FPS <input type="number" id="comfyvideo_panel_fps" class="text_pole cv_num" min="1" max="60" /></label>
+                    <span id="comfyvideo_panel_clip_hint" class="cv_panel_hint"></span>
+                </div>
+            </div>
+
+            <div class="cv_panel_section">
+                <div class="cv_panel_label">Image workflow</div>
+                <select id="comfyvideo_panel_image_wf" class="text_pole"></select>
+            </div>
+            <div class="cv_panel_section">
+                <div class="cv_panel_label">Image gen prompt (LLM instructions)</div>
+                <select id="comfyvideo_panel_image_prompt" class="text_pole"></select>
+            </div>
+            <div class="cv_panel_section">
+                <div class="cv_panel_label">I2V workflow</div>
+                <select id="comfyvideo_panel_i2v_wf" class="text_pole"></select>
+            </div>
+            <div class="cv_panel_section">
+                <div class="cv_panel_label">Video gen prompt (LLM instructions)</div>
+                <select id="comfyvideo_panel_motion_prompt" class="text_pole"></select>
+            </div>
+
+            <div class="cv_panel_section cv_panel_actions">
+                <button type="button" class="cv_action_btn primary" id="comfyvideo_panel_gen_image">
+                    <i class="fa-solid fa-image"></i>
+                    Generate scene image
+                </button>
+                <button type="button" class="cv_action_btn" id="comfyvideo_panel_gen_video">
+                    <i class="fa-solid fa-film"></i>
+                    Generate video
+                </button>
+                <p class="cv_panel_hint" id="comfyvideo_panel_video_hint">
+                    Video uses the latest ComfyVideo still in this chat (or the selected message’s film button).
+                </p>
+            </div>
+
+            <div class="cv_panel_footer">
+                <button type="button" class="cv_link_btn" id="comfyvideo_panel_open_settings">
+                    <i class="fa-solid fa-gear"></i> Full settings
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

@@ -24,12 +24,25 @@ Tuned for **natural language**:
 
 Motion prompts **always** use the LLM (no fixed-only mode). Optional preview before generate.
 
+## Generation panel
+
+Wand menu → **ComfyVideo** (or `/comfyvideo`) opens a floating panel (Pathweaver-style):
+
+- Portrait / landscape  
+- Video length presets (2s–6s) + frames/FPS  
+- Pick image & I2V workflows and LLM instruction presets  
+- **Generate scene image** / **Generate video** (latest ComfyVideo still)  
+- Link to full extension settings  
+
+Per-message film button still works for I2V on a specific message.
+
 ## Setup
 
 1. ComfyUI + CORS for upload/WS  
 2. LLM: connection profile (recommended) or quiet gen  
-3. Library → **Edit** paste API workflows with placeholders  
-4. `/sceneimage` or wand → film button on message for I2V  
+3. Full settings → library → **Edit** paste API workflows  
+4. Wand **ComfyVideo** panel for day-to-day generation  
+
 
 ### Placeholders
 

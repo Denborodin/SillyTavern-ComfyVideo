@@ -52,6 +52,7 @@ import {
     exportLibrariesBlob,
     importLibraries,
 } from './lib/library.js';
+import { createPanel } from './lib/panel.js';
 
 const MODULE = 'ComfyVideo';
 const LOG = '[ComfyVideo]';
@@ -109,6 +110,8 @@ const defaultSettings = Object.freeze({
 let comfy;
 /** @type {ReturnType<typeof createPromptBuilder>} */
 let prompts;
+/** @type {ReturnType<typeof createPanel>|null} */
+let panel = null;
 let busy = false;
 
 function getSettings() {
@@ -656,10 +659,12 @@ function addWandButton() {
     const btn = document.createElement('div');
     btn.id = 'comfyvideo_wand_button';
     btn.className = 'list-group-item flex-container flexGap5';
-    btn.title = 'ComfyVideo: Generate Scene Image';
-    btn.innerHTML = '<div class="fa-solid fa-clapperboard extensionsMenuExtensionButton"></div><span>Generate Scene Image</span>';
+    btn.title = 'ComfyVideo: open generation panel';
+    btn.innerHTML = '<div class="fa-solid fa-clapperboard extensionsMenuExtensionButton"></div><span>ComfyVideo</span>';
     btn.addEventListener('click', () => {
-        generateSceneImage().catch(err => {
+        // Close extensions menu if open
+        document.body.click();
+        panel?.open().catch(err => {
             console.error(LOG, err);
             toastr.error(String(err.message || err), 'ComfyVideo');
         });
@@ -676,6 +681,15 @@ function registerSlashCommands() {
             return '';
         },
         helpString: 'ComfyVideo: generate a scene still from recent RP chat.',
+    }));
+    SlashCommandParser.addCommandObject(SlashCommand.fromProps({
+        name: 'comfyvideo',
+        aliases: ['cvpanel'],
+        callback: async () => {
+            await panel?.open();
+            return '';
+        },
+        helpString: 'ComfyVideo: open the floating generation panel.',
     }));
 }
 
@@ -1001,6 +1015,21 @@ jQuery(async () => {
         getContext,
         generateQuietPrompt,
         ConnectionManagerRequestService,
+    });
+    panel = createPanel({
+        getSettings,
+        saveSettings,
+        syncSettingsUi: () => {
+            applySettingsToUi();
+            refreshLibraryDropdowns();
+            updateClipLengthHint();
+        },
+        generateSceneImage,
+        generateVideoForMessage,
+        getContext,
+        isComfyVideoMessage,
+        getMessageImageUrl,
+        extName: EXT_NAME,
     });
     await loadSettingsHtml();
     addWandButton();

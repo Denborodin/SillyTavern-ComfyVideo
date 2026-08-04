@@ -46,7 +46,6 @@
             <select id="comfyvideo_prompt_mode" class="text_pole">
                 <option value="profile">Connection profile (background)</option>
                 <option value="quiet">Quiet gen (current main model)</option>
-                <option value="manual">Manual (no LLM)</option>
             </select>
             <label for="comfyvideo_llm_profile">Connection profile</label>
             <select id="comfyvideo_llm_profile" class="text_pole"></select>
@@ -60,8 +59,6 @@
                 Off by default — RP/completion presets often add junk tags to image prompts.
                 Profile mode does not post to chat or switch your main connection.
             </p>
-            <label for="comfyvideo_manual_prompt">Manual image prompt</label>
-            <textarea id="comfyvideo_manual_prompt" class="text_pole" rows="3" placeholder="Used when mode = Manual"></textarea>
         </div>
 
         <!-- Image -->
@@ -105,6 +102,9 @@
             </select>
             <label for="comfyvideo_fixed_motion">Fixed / default motion prompt</label>
             <textarea id="comfyvideo_fixed_motion" class="text_pole" rows="2"></textarea>
+            <label for="comfyvideo_motion_prompt_template">Video LLM instructions</label>
+            <textarea id="comfyvideo_motion_prompt_template" class="text_pole" rows="4"
+                placeholder="Instructions for the LLM when motion source = Auto"></textarea>
             <label class="checkbox_label" for="comfyvideo_confirm_motion">
                 <input type="checkbox" id="comfyvideo_confirm_motion" />
                 <span>Preview / edit motion prompt before I2V</span>

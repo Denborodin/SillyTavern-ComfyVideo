@@ -27,7 +27,8 @@ Or clone into that path. Restart SillyTavern / reload extensions.
 3. Paste Image + I2V API workflows  
    - Image: `"%prompt%"`, `"%negative_prompt%"`, `"%seed%"`, `"%width%"`, `"%height%"`  
    - I2V: `"%image%"` (LoadImage filename after upload), motion `"%prompt%"`, `"%frames%"`, `"%fps%"`, etc.
-4. Pick LLM mode (profile recommended). **Use completion preset** is **off** by default so RP presets don’t pollute image prompts.
+4. Pick LLM mode: **connection profile** (recommended) or **quiet** (main model). **Use completion preset** is **off** by default so RP presets don’t pollute prompts.  
+   Set **Image LLM instructions** and **Video LLM instructions** (used when motion source = Auto).
 5. Wand → **Generate Scene Image** (or `/sceneimage`) → optional prompt preview → still in chat  
 6. Film button on that message → optional **motion prompt preview** → upload → I2V → video
 

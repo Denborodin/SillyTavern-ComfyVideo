@@ -51,6 +51,11 @@ const DEFAULT_IMAGE_PROMPT_TEMPLATE =
     'Output ONLY the prompt text. No preamble, no quality-tag dumps (masterpiece, best quality, score_9, etc.) ' +
     'unless the scene clearly needs them.';
 
+const DEFAULT_MOTION_PROMPT_TEMPLATE =
+    'You write short motion prompts for image-to-video from the scene context. ' +
+    'Output one line only: camera and subject motion (e.g. gentle pan, hair movement, breathing). ' +
+    'No quality tags, style essays, or full image re-descriptions.';
+
 const defaultSettings = Object.freeze({
     enabled: true,
     comfyUrl: 'http://127.0.0.1:8188',
@@ -64,10 +69,9 @@ const defaultSettings = Object.freeze({
     confirmImagePrompt: true,
     imagePromptTemplate: DEFAULT_IMAGE_PROMPT_TEMPLATE,
 
-    promptMode: 'profile',
+    promptMode: 'profile', // profile | quiet
     llmProfileId: '',
     maxPromptTokens: 400,
-    manualImagePrompt: '',
     useLlmPreset: false,
 
     i2vWorkflow: '',
@@ -75,6 +79,7 @@ const defaultSettings = Object.freeze({
     fps: 8,
     motionPromptMode: 'fixed',
     fixedMotionPrompt: 'subtle natural movement, gentle camera motion',
+    motionPromptTemplate: DEFAULT_MOTION_PROMPT_TEMPLATE,
     confirmMotionPrompt: true,
     seedMode: 'random',
     fixedSeed: 0,
@@ -106,9 +111,14 @@ function getSettings() {
         const h = Number(st.imageHeight);
         st.resolution = (w >= h) ? 'landscape' : 'portrait';
     }
+    // Manual mode removed
+    if (st.promptMode === 'manual') {
+        st.promptMode = 'profile';
+    }
     delete st.imageWidth;
     delete st.imageHeight;
     delete st.imageInputMode;
+    delete st.manualImagePrompt;
     return st;
 }
 
@@ -185,7 +195,6 @@ function bindSettingsUi() {
         ['comfyvideo_llm_profile', 'llmProfileId', 'value'],
         ['comfyvideo_max_prompt_tokens', 'maxPromptTokens', 'number'],
         ['comfyvideo_use_llm_preset', 'useLlmPreset', 'checked'],
-        ['comfyvideo_manual_prompt', 'manualImagePrompt', 'value'],
         ['comfyvideo_image_workflow', 'imageWorkflow', 'value'],
         ['comfyvideo_context_messages', 'contextMessages', 'number'],
         ['comfyvideo_include_character', 'includeCharacter', 'checked'],
@@ -196,6 +205,7 @@ function bindSettingsUi() {
         ['comfyvideo_fps', 'fps', 'number'],
         ['comfyvideo_motion_mode', 'motionPromptMode', 'value'],
         ['comfyvideo_fixed_motion', 'fixedMotionPrompt', 'value'],
+        ['comfyvideo_motion_prompt_template', 'motionPromptTemplate', 'value'],
         ['comfyvideo_confirm_motion', 'confirmMotionPrompt', 'checked'],
         ['comfyvideo_seed_mode', 'seedMode', 'value'],
         ['comfyvideo_fixed_seed', 'fixedSeed', 'number'],
@@ -246,7 +256,6 @@ function applySettingsToUi() {
     set('comfyvideo_llm_profile', st.llmProfileId);
     set('comfyvideo_max_prompt_tokens', st.maxPromptTokens);
     set('comfyvideo_use_llm_preset', st.useLlmPreset, 'checked');
-    set('comfyvideo_manual_prompt', st.manualImagePrompt);
     set('comfyvideo_image_workflow', st.imageWorkflow);
     set('comfyvideo_context_messages', st.contextMessages);
     set('comfyvideo_include_character', st.includeCharacter, 'checked');
@@ -257,6 +266,7 @@ function applySettingsToUi() {
     set('comfyvideo_fps', st.fps);
     set('comfyvideo_motion_mode', st.motionPromptMode === 'auto' ? 'auto' : 'fixed');
     set('comfyvideo_fixed_motion', st.fixedMotionPrompt);
+    set('comfyvideo_motion_prompt_template', st.motionPromptTemplate);
     set('comfyvideo_confirm_motion', st.confirmMotionPrompt, 'checked');
     set('comfyvideo_seed_mode', st.seedMode);
     set('comfyvideo_fixed_seed', st.fixedSeed);

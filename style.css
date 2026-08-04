@@ -90,6 +90,80 @@
     margin-top: 0.9em;
 }
 
+#comfyvideo_settings .comfyvideo-lib-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em;
+    align-items: center;
+    margin: 0.35em 0 0.5em;
+}
+
+#comfyvideo_settings .comfyvideo-lib-select {
+    flex: 1 1 12em;
+    min-width: 10em;
+}
+
+#comfyvideo_settings .displayNone {
+    display: none !important;
+}
+
+/* Workflow editor popup (mirrors built-in Image Generation layout) */
+.comfyvideo_workflow_editor {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 50vh;
+}
+
+.comfyvideo_workflow_editor_content {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: row;
+    gap: 0.75em;
+    min-height: 0;
+}
+
+.comfyvideo_workflow_editor_workflow_container {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+#comfyvideo_workflow_editor_json {
+    font-family: var(--monoFontFamily, ui-monospace, monospace);
+    flex: 1 1 auto;
+    min-height: 40vh;
+    width: 100%;
+}
+
+.comfyvideo_workflow_editor_placeholder_container {
+    flex: 0 0 11em;
+    max-width: 12em;
+    overflow: auto;
+}
+
+.comfyvideo_workflow_editor_placeholder_list {
+    font-size: x-small;
+    list-style: none;
+    margin: 5px 0;
+    padding: 3px 5px;
+    text-align: left;
+}
+
+.comfyvideo_workflow_editor_placeholder_list > li[data-placeholder] {
+    cursor: pointer;
+    margin: 0.15em 0;
+}
+
+.comfyvideo_workflow_editor_placeholder_list > li[data-placeholder]:before {
+    content: "✅ ";
+}
+
+.comfyvideo_workflow_editor_placeholder_list > li.comfyvideo_workflow_editor_not_found:before {
+    content: "❌ ";
+}
+
 /* Per-message I2V button */
 .mes_button.comfyvideo-i2v-btn {
     cursor: pointer;

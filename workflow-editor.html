@@ -1,0 +1,16 @@
+<div id="comfyvideo_workflow_editor_root" class="comfyvideo_workflow_editor">
+    <h3><strong>ComfyVideo Workflow: <span id="comfyvideo_workflow_editor_name"></span></strong></h3>
+    <div class="comfyvideo_workflow_editor_content">
+        <div class="flex-container flexFlowColumn comfyvideo_workflow_editor_workflow_container">
+            <label for="comfyvideo_workflow_editor_json">Workflow (API JSON)</label>
+            <textarea id="comfyvideo_workflow_editor_json" class="text_pole wide100p textarea_compact flex1"
+                placeholder="Paste ComfyUI API-format workflow JSON. Use Save (API Format) in ComfyUI Dev Mode. Replace values with placeholders listed on the right."></textarea>
+        </div>
+        <div class="comfyvideo_workflow_editor_placeholder_container">
+            <div><b>Placeholders</b></div>
+            <p class="comfyvideo-hint" style="margin:0.25em 0">Green = found in JSON. Click a name to copy.</p>
+            <ul class="comfyvideo_workflow_editor_placeholder_list" id="comfyvideo_workflow_editor_placeholders">
+            </ul>
+        </div>
+    </div>
+</div>

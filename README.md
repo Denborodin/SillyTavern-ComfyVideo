@@ -1,48 +1,43 @@
 # ComfyVideo for SillyTavern
 
-Two-step **scene image → image-to-video (I2V)** UI extension using **local ComfyUI**.
+Two-step **scene image → I2V** using local **ComfyUI**. Separate from built-in Image Generation.
 
-**Not** the built-in Image Generation extension — all settings live under `extension_settings.ComfyVideo`.
+## Libraries
 
-## Install
+Save and switch on the fly:
 
-```text
-SillyTavern/data/<user>/extensions/ComfyVideo/
-```
+| Library | UI |
+|--------|-----|
+| Image workflows | Dropdown · **Edit** (API JSON popup, same idea as ST Image Gen) · Save as · Delete |
+| I2V workflows | same |
+| Image LLM instructions | Dropdown · textarea · Save / Save as / Delete |
+| Video LLM instructions | same (`{{clip_seconds}}`, `{{motion_lines}}`) |
 
-Or clone into that path. Restart SillyTavern / reload extensions.
+Export / Import JSON under **Library backup**.
 
-## Requirements
+## LLM prompts (defaults)
 
-1. **ComfyUI** at e.g. `http://127.0.0.1:8188`
-2. **CORS** on ComfyUI for browser upload + progress WebSocket, e.g.  
-   `--enable-cors-header *` or your ST origin
-3. API-format **Image** and **I2V** workflows pasted in settings
-4. Optional: Connection Manager **profile** for background prompt LLM
+Tuned for **natural language**:
 
-## Usage
+- **Z-Image (photo/still)** — roleplay focus: appearance, clothing, positions, actions (not VN-style tag dumps).
+- **MiniMax H3 (video)** — I2V motion only; clip length from **frames ÷ fps** (≈ one line per 1–2 seconds).
 
-1. Set Comfy URL → **Test Connection**
-2. Choose resolution: **768×1344** or **1344×768** (shared by image + video)
-3. Paste Image + I2V API workflows  
-   - Image: `"%prompt%"`, `"%negative_prompt%"`, `"%seed%"`, `"%width%"`, `"%height%"`  
-   - I2V: `"%image%"` (LoadImage filename after upload), motion `"%prompt%"`, `"%frames%"`, `"%fps%"`, etc.
-4. Pick LLM mode: **connection profile** (recommended) or **quiet** (main model). **Use completion preset** is **off** by default so RP presets don’t pollute prompts.  
-   Set **Image LLM instructions** and **Video LLM instructions** (used when motion source = Auto).
-5. Wand → **Generate Scene Image** (or `/sceneimage`) → optional prompt preview → still in chat  
-6. Film button on that message → optional **motion prompt preview** → upload → I2V → video
+Motion prompts **always** use the LLM (no fixed-only mode). Optional preview before generate.
 
-Status panel shows **Stop** and a **progress bar** (Comfy WebSocket when available; otherwise indeterminate).
+## Setup
 
-## Notes
+1. ComfyUI + CORS for upload/WS  
+2. LLM: connection profile (recommended) or quiet gen  
+3. Library → **Edit** paste API workflows with placeholders  
+4. `/sceneimage` or wand → film button on message for I2V  
 
-| Topic | Behavior |
-|--------|----------|
-| Settings | `ComfyVideo` only — never `extension_settings.sd` |
-| Generate / ping | ST `/api/sd/comfy/*` |
-| I2V image | Comfy `POST /upload/image` only (no base64 path) |
-| LLM preset | Ignored by default; optional checkbox |
-| Resolution | One setting for both steps |
+### Placeholders
+
+**Image:** `"%prompt%"`, `"%negative_prompt%"`, `"%seed%"`, `"%width%"`, `"%height%"`  
+
+**I2V:** `"%image%"`, `"%prompt%"`, `"%frames%"`, `"%fps%"`, …  
+
+**Resolution:** 768×1344 or 1344×768 (shared).
 
 ## License
 

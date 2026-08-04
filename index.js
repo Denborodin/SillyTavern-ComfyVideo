@@ -1,7 +1,6 @@
 /**
  * ComfyVideo – SillyTavern UI extension
  * Scene image (T2I) → per-message I2V, via local ComfyUI.
- * Settings are fully separate from the built-in Image Generation extension.
  * AGPL-3.0
  */
 
@@ -19,7 +18,7 @@ import { saveBase64AsFile } from '../../../utils.js';
 import { getMessageTimeStamp, humanizedDateTime } from '../../../RossAscends-mods.js';
 import { SlashCommandParser } from '../../../slash-commands/SlashCommandParser.js';
 import { SlashCommand } from '../../../slash-commands/SlashCommand.js';
-import { callGenericPopup, POPUP_TYPE } from '../../../popup.js';
+import { callGenericPopup, Popup, POPUP_TYPE } from '../../../popup.js';
 import { ConnectionManagerRequestService } from '../../shared.js';
 
 import { createComfyClient } from './lib/comfy-client.js';
@@ -39,29 +38,37 @@ import {
     isVideoFormat,
 } from './lib/media.js';
 import { showStatus, newClientId, isAbortError } from './lib/status-ui.js';
+import {
+    DEFAULT_IMAGE_PROMPT_TEMPLATE,
+    DEFAULT_MOTION_PROMPT_TEMPLATE,
+    clipTiming,
+} from './lib/defaults.js';
+import {
+    ensureLibraries,
+    findItem,
+    overwriteItem,
+    addItem,
+    removeItem,
+    exportLibrariesBlob,
+    importLibraries,
+} from './lib/library.js';
 
 const MODULE = 'ComfyVideo';
 const LOG = '[ComfyVideo]';
 const EXT_NAME = 'ComfyVideo';
 
-const DEFAULT_IMAGE_PROMPT_TEMPLATE =
-    'You are an expert image prompt engineer for anime/illustration stills. ' +
-    'From the scene context, write ONE detailed image generation prompt: composition, characters, pose, clothing, ' +
-    'expression, lighting, environment, camera angle, art style. ' +
-    'Output ONLY the prompt text. No preamble, no quality-tag dumps (masterpiece, best quality, score_9, etc.) ' +
-    'unless the scene clearly needs them.';
-
-const DEFAULT_MOTION_PROMPT_TEMPLATE =
-    'You write short motion prompts for image-to-video from the scene context. ' +
-    'Output one line only: camera and subject motion (e.g. gentle pan, hair movement, breathing). ' +
-    'No quality tags, style essays, or full image re-descriptions.';
+const IMAGE_PLACEHOLDERS = [
+    'prompt', 'negative_prompt', 'seed', 'width', 'height',
+];
+const I2V_PLACEHOLDERS = [
+    'image', 'image_name', 'image_subfolder',
+    'prompt', 'negative_prompt', 'seed', 'frames', 'fps', 'width', 'height',
+];
 
 const defaultSettings = Object.freeze({
     enabled: true,
     comfyUrl: 'http://127.0.0.1:8188',
-
-    // Shared resolution for image + video
-    resolution: 'portrait', // portrait 768x1344 | landscape 1344x768
+    resolution: 'portrait',
 
     imageWorkflow: '',
     contextMessages: 5,
@@ -69,7 +76,7 @@ const defaultSettings = Object.freeze({
     confirmImagePrompt: true,
     imagePromptTemplate: DEFAULT_IMAGE_PROMPT_TEMPLATE,
 
-    promptMode: 'profile', // profile | quiet
+    promptMode: 'profile',
     llmProfileId: '',
     maxPromptTokens: 400,
     useLlmPreset: false,
@@ -77,8 +84,6 @@ const defaultSettings = Object.freeze({
     i2vWorkflow: '',
     frames: 16,
     fps: 8,
-    motionPromptMode: 'fixed',
-    fixedMotionPrompt: 'subtle natural movement, gentle camera motion',
     motionPromptTemplate: DEFAULT_MOTION_PROMPT_TEMPLATE,
     confirmMotionPrompt: true,
     seedMode: 'random',
@@ -87,6 +92,17 @@ const defaultSettings = Object.freeze({
 
     attachImageMode: 'last',
     attachVideoMode: 'same',
+
+    activeImageWorkflowId: '',
+    activeI2vWorkflowId: '',
+    activeImagePromptId: '',
+    activeMotionPromptId: '',
+    libraries: {
+        imageWorkflows: [],
+        i2vWorkflows: [],
+        imagePrompts: [],
+        motionPrompts: [],
+    },
 });
 
 /** @type {ReturnType<typeof createComfyClient>} */
@@ -102,23 +118,23 @@ function getSettings() {
     const st = extension_settings[MODULE];
     for (const key of Object.keys(defaultSettings)) {
         if (st[key] === undefined) {
-            st[key] = defaultSettings[key];
+            st[key] = structuredClone(defaultSettings[key]);
         }
     }
-    // Migrate legacy free width/height → resolution preset
     if (!st.resolution) {
         const w = Number(st.imageWidth);
         const h = Number(st.imageHeight);
         st.resolution = (w >= h) ? 'landscape' : 'portrait';
     }
-    // Manual mode removed
-    if (st.promptMode === 'manual') {
-        st.promptMode = 'profile';
-    }
+    if (st.promptMode === 'manual') st.promptMode = 'profile';
+    // Always LLM for motion — drop fixed mode
+    delete st.motionPromptMode;
+    delete st.fixedMotionPrompt;
     delete st.imageWidth;
     delete st.imageHeight;
     delete st.imageInputMode;
     delete st.manualImagePrompt;
+    ensureLibraries(st);
     return st;
 }
 
@@ -127,9 +143,7 @@ function saveSettings() {
 }
 
 function resolveSeed(settings) {
-    if (settings.seedMode === 'fixed') {
-        return Number(settings.fixedSeed) || 0;
-    }
+    if (settings.seedMode === 'fixed') return Number(settings.fixedSeed) || 0;
     return Math.floor(Math.random() * 2 ** 32);
 }
 
@@ -143,7 +157,6 @@ function populateProfileDropdown() {
     empty.value = '';
     empty.textContent = '(none)';
     select.append(empty);
-
     try {
         const profiles = ConnectionManagerRequestService.getSupportedProfiles?.()
             || getContext().extensionSettings?.connectionManager?.profiles
@@ -158,6 +171,49 @@ function populateProfileDropdown() {
         console.warn(LOG, 'Could not list connection profiles', e);
     }
     select.value = prev || '';
+}
+
+function updateClipLengthHint() {
+    const st = getSettings();
+    const el = document.getElementById('comfyvideo_clip_length_hint');
+    if (!el) return;
+    const { seconds, motionLines } = clipTiming(st.frames, st.fps);
+    el.textContent = `≈ ${seconds}s · ~${motionLines} motion lines`;
+}
+
+/**
+ * @param {HTMLSelectElement} select
+ * @param {{id:string,name:string}[]} list
+ * @param {string} activeId
+ */
+function fillLibrarySelect(select, list, activeId) {
+    select.innerHTML = '';
+    const none = document.createElement('option');
+    none.value = '';
+    none.textContent = list.length ? '(select…)' : '(empty — Save as…)';
+    select.append(none);
+    for (const item of list) {
+        const opt = document.createElement('option');
+        opt.value = item.id;
+        opt.textContent = item.name;
+        select.append(opt);
+    }
+    select.value = activeId && list.some(x => x.id === activeId) ? activeId : '';
+}
+
+function refreshLibraryDropdowns() {
+    const st = getSettings();
+    const L = st.libraries;
+    const map = [
+        ['comfyvideo_lib_image_wf', L.imageWorkflows, st.activeImageWorkflowId],
+        ['comfyvideo_lib_i2v_wf', L.i2vWorkflows, st.activeI2vWorkflowId],
+        ['comfyvideo_lib_image_prompt', L.imagePrompts, st.activeImagePromptId],
+        ['comfyvideo_lib_motion_prompt', L.motionPrompts, st.activeMotionPromptId],
+    ];
+    for (const [id, list, active] of map) {
+        const sel = /** @type {HTMLSelectElement|null} */ (document.getElementById(id));
+        if (sel) fillLibrarySelect(sel, list, active);
+    }
 }
 
 async function loadSettingsHtml() {
@@ -181,8 +237,11 @@ async function loadSettingsHtml() {
     container.append(wrap);
 
     bindSettingsUi();
+    bindLibraryUi();
     applySettingsToUi();
     populateProfileDropdown();
+    refreshLibraryDropdowns();
+    updateClipLengthHint();
 }
 
 function bindSettingsUi() {
@@ -195,16 +254,12 @@ function bindSettingsUi() {
         ['comfyvideo_llm_profile', 'llmProfileId', 'value'],
         ['comfyvideo_max_prompt_tokens', 'maxPromptTokens', 'number'],
         ['comfyvideo_use_llm_preset', 'useLlmPreset', 'checked'],
-        ['comfyvideo_image_workflow', 'imageWorkflow', 'value'],
         ['comfyvideo_context_messages', 'contextMessages', 'number'],
         ['comfyvideo_include_character', 'includeCharacter', 'checked'],
         ['comfyvideo_confirm_prompt', 'confirmImagePrompt', 'checked'],
         ['comfyvideo_image_prompt_template', 'imagePromptTemplate', 'value'],
-        ['comfyvideo_i2v_workflow', 'i2vWorkflow', 'value'],
         ['comfyvideo_frames', 'frames', 'number'],
         ['comfyvideo_fps', 'fps', 'number'],
-        ['comfyvideo_motion_mode', 'motionPromptMode', 'value'],
-        ['comfyvideo_fixed_motion', 'fixedMotionPrompt', 'value'],
         ['comfyvideo_motion_prompt_template', 'motionPromptTemplate', 'value'],
         ['comfyvideo_confirm_motion', 'confirmMotionPrompt', 'checked'],
         ['comfyvideo_seed_mode', 'seedMode', 'value'],
@@ -220,13 +275,10 @@ function bindSettingsUi() {
         const eventName = el.tagName === 'SELECT' || el.type === 'checkbox' ? 'change' : 'input';
         el.addEventListener(eventName, () => {
             const st = s();
-            if (kind === 'checked') {
-                st[key] = /** @type {HTMLInputElement} */ (el).checked;
-            } else if (kind === 'number') {
-                st[key] = Number(/** @type {HTMLInputElement} */ (el).value);
-            } else {
-                st[key] = /** @type {HTMLInputElement} */ (el).value;
-            }
+            if (kind === 'checked') st[key] = /** @type {HTMLInputElement} */ (el).checked;
+            else if (kind === 'number') st[key] = Number(/** @type {HTMLInputElement} */ (el).value);
+            else st[key] = /** @type {HTMLInputElement} */ (el).value;
+            if (key === 'frames' || key === 'fps') updateClipLengthHint();
             saveSettings();
         });
     }
@@ -234,11 +286,313 @@ function bindSettingsUi() {
     document.getElementById('comfyvideo_test_btn')?.addEventListener('click', onTestConnection);
     document.getElementById('comfyvideo_reset_btn')?.addEventListener('click', () => {
         extension_settings[MODULE] = structuredClone(defaultSettings);
+        ensureLibraries(extension_settings[MODULE]);
         saveSettings();
         applySettingsToUi();
         populateProfileDropdown();
+        refreshLibraryDropdowns();
+        updateClipLengthHint();
         toastr.info('ComfyVideo settings reset.');
     });
+
+    document.getElementById('comfyvideo_export_libs')?.addEventListener('click', () => {
+        const st = getSettings();
+        const blob = exportLibrariesBlob(st);
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `comfyvideo-libraries-${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+    });
+
+    document.getElementById('comfyvideo_import_libs')?.addEventListener('click', () => {
+        document.getElementById('comfyvideo_import_file')?.click();
+    });
+    document.getElementById('comfyvideo_import_file')?.addEventListener('change', async e => {
+        const file = /** @type {HTMLInputElement} */ (e.target).files?.[0];
+        if (!file) return;
+        try {
+            const data = JSON.parse(await file.text());
+            const st = getSettings();
+            importLibraries(st, data, false);
+            saveSettings();
+            applySettingsToUi();
+            refreshLibraryDropdowns();
+            toastr.success('Libraries imported (merged).', 'ComfyVideo');
+        } catch (err) {
+            toastr.error(String(err.message || err), 'ComfyVideo');
+        }
+        /** @type {HTMLInputElement} */ (e.target).value = '';
+    });
+}
+
+function bindLibraryUi() {
+    // Image workflow
+    wireWorkflowLibrary({
+        selectId: 'comfyvideo_lib_image_wf',
+        editId: 'comfyvideo_lib_image_wf_edit',
+        saveAsId: 'comfyvideo_lib_image_wf_saveas',
+        deleteId: 'comfyvideo_lib_image_wf_delete',
+        listKey: 'imageWorkflows',
+        activeIdKey: 'activeImageWorkflowId',
+        fieldKey: 'imageWorkflow',
+        kind: 'image',
+        title: 'Image workflow',
+    });
+    // I2V workflow
+    wireWorkflowLibrary({
+        selectId: 'comfyvideo_lib_i2v_wf',
+        editId: 'comfyvideo_lib_i2v_wf_edit',
+        saveAsId: 'comfyvideo_lib_i2v_wf_saveas',
+        deleteId: 'comfyvideo_lib_i2v_wf_delete',
+        listKey: 'i2vWorkflows',
+        activeIdKey: 'activeI2vWorkflowId',
+        fieldKey: 'i2vWorkflow',
+        kind: 'i2v',
+        title: 'I2V workflow',
+    });
+    // Image prompt template
+    wirePromptLibrary({
+        selectId: 'comfyvideo_lib_image_prompt',
+        saveId: 'comfyvideo_lib_image_prompt_save',
+        saveAsId: 'comfyvideo_lib_image_prompt_saveas',
+        deleteId: 'comfyvideo_lib_image_prompt_delete',
+        textareaId: 'comfyvideo_image_prompt_template',
+        listKey: 'imagePrompts',
+        activeIdKey: 'activeImagePromptId',
+        fieldKey: 'imagePromptTemplate',
+    });
+    // Motion prompt template
+    wirePromptLibrary({
+        selectId: 'comfyvideo_lib_motion_prompt',
+        saveId: 'comfyvideo_lib_motion_prompt_save',
+        saveAsId: 'comfyvideo_lib_motion_prompt_saveas',
+        deleteId: 'comfyvideo_lib_motion_prompt_delete',
+        textareaId: 'comfyvideo_motion_prompt_template',
+        listKey: 'motionPrompts',
+        activeIdKey: 'activeMotionPromptId',
+        fieldKey: 'motionPromptTemplate',
+    });
+}
+
+/**
+ * @param {object} cfg
+ */
+function wireWorkflowLibrary(cfg) {
+    const select = /** @type {HTMLSelectElement|null} */ (document.getElementById(cfg.selectId));
+    if (!select) return;
+
+    select.addEventListener('change', () => {
+        const st = getSettings();
+        const id = select.value;
+        st[cfg.activeIdKey] = id;
+        if (id) {
+            const item = findItem(st.libraries[cfg.listKey], id);
+            if (item?.json != null) {
+                st[cfg.fieldKey] = item.json;
+            }
+        }
+        saveSettings();
+    });
+
+    document.getElementById(cfg.editId)?.addEventListener('click', async () => {
+        const st = getSettings();
+        const id = st[cfg.activeIdKey];
+        const item = id ? findItem(st.libraries[cfg.listKey], id) : null;
+        const name = item?.name || `New ${cfg.title}`;
+        const initial = item?.json ?? st[cfg.fieldKey] ?? '';
+        const result = await openWorkflowEditor({
+            name,
+            json: initial,
+            placeholders: cfg.kind === 'i2v' ? I2V_PLACEHOLDERS : IMAGE_PLACEHOLDERS,
+        });
+        if (result == null) return;
+        st[cfg.fieldKey] = result;
+        if (item) {
+            item.json = result;
+        } else {
+            // No selection: save as new
+            const n = await callGenericPopup('Name for this workflow:', POPUP_TYPE.INPUT, name);
+            if (!n) {
+                saveSettings();
+                return;
+            }
+            const created = addItem(st.libraries[cfg.listKey], String(n), result, 'json');
+            st[cfg.activeIdKey] = created.id;
+            refreshLibraryDropdowns();
+        }
+        saveSettings();
+        toastr.success('Workflow saved.', 'ComfyVideo');
+    });
+
+    document.getElementById(cfg.saveAsId)?.addEventListener('click', async () => {
+        const st = getSettings();
+        let json = st[cfg.fieldKey] || '';
+        if (!json.trim()) {
+            // open editor first if empty
+            const edited = await openWorkflowEditor({
+                name: 'New workflow',
+                json: '',
+                placeholders: cfg.kind === 'i2v' ? I2V_PLACEHOLDERS : IMAGE_PLACEHOLDERS,
+            });
+            if (edited == null) return;
+            json = edited;
+            st[cfg.fieldKey] = json;
+        }
+        const n = await callGenericPopup('Save workflow as:', POPUP_TYPE.INPUT, '');
+        if (!n) return;
+        const created = addItem(st.libraries[cfg.listKey], String(n), json, 'json');
+        st[cfg.activeIdKey] = created.id;
+        saveSettings();
+        refreshLibraryDropdowns();
+        toastr.success('Workflow added to library.', 'ComfyVideo');
+    });
+
+    document.getElementById(cfg.deleteId)?.addEventListener('click', async () => {
+        const st = getSettings();
+        const id = st[cfg.activeIdKey];
+        if (!id) {
+            toastr.info('Select a library item first.');
+            return;
+        }
+        const ok = await callGenericPopup('Delete this workflow from the library?', POPUP_TYPE.CONFIRM);
+        if (!ok) return;
+        removeItem(st.libraries[cfg.listKey], id);
+        st[cfg.activeIdKey] = '';
+        saveSettings();
+        refreshLibraryDropdowns();
+    });
+}
+
+/**
+ * @param {object} cfg
+ */
+function wirePromptLibrary(cfg) {
+    const select = /** @type {HTMLSelectElement|null} */ (document.getElementById(cfg.selectId));
+    const ta = /** @type {HTMLTextAreaElement|null} */ (document.getElementById(cfg.textareaId));
+    if (!select || !ta) return;
+
+    select.addEventListener('change', () => {
+        const st = getSettings();
+        const id = select.value;
+        st[cfg.activeIdKey] = id;
+        if (id) {
+            const item = findItem(st.libraries[cfg.listKey], id);
+            if (item?.template != null) {
+                st[cfg.fieldKey] = item.template;
+                ta.value = item.template;
+            }
+        }
+        saveSettings();
+    });
+
+    document.getElementById(cfg.saveId)?.addEventListener('click', () => {
+        const st = getSettings();
+        const id = st[cfg.activeIdKey];
+        const content = ta.value;
+        st[cfg.fieldKey] = content;
+        if (!id) {
+            toastr.info('No library item selected — use Save as…');
+            saveSettings();
+            return;
+        }
+        if (!overwriteItem(st.libraries[cfg.listKey], id, content, 'template')) {
+            toastr.error('Item not found.');
+            return;
+        }
+        saveSettings();
+        toastr.success('Saved.', 'ComfyVideo');
+    });
+
+    document.getElementById(cfg.saveAsId)?.addEventListener('click', async () => {
+        const st = getSettings();
+        const content = ta.value;
+        const n = await callGenericPopup('Save instructions as:', POPUP_TYPE.INPUT, '');
+        if (!n) return;
+        const created = addItem(st.libraries[cfg.listKey], String(n), content, 'template');
+        st[cfg.activeIdKey] = created.id;
+        st[cfg.fieldKey] = content;
+        saveSettings();
+        refreshLibraryDropdowns();
+        toastr.success('Added to library.', 'ComfyVideo');
+    });
+
+    document.getElementById(cfg.deleteId)?.addEventListener('click', async () => {
+        const st = getSettings();
+        const id = st[cfg.activeIdKey];
+        if (!id) {
+            toastr.info('Select a library item first.');
+            return;
+        }
+        const ok = await callGenericPopup('Delete this prompt preset from the library?', POPUP_TYPE.CONFIRM);
+        if (!ok) return;
+        removeItem(st.libraries[cfg.listKey], id);
+        st[cfg.activeIdKey] = '';
+        saveSettings();
+        refreshLibraryDropdowns();
+    });
+}
+
+/**
+ * ST-style wide popup workflow editor with placeholder checklist.
+ * @param {{ name: string, json: string, placeholders: string[] }} opts
+ * @returns {Promise<string|null>}
+ */
+async function openWorkflowEditor(opts) {
+    let html;
+    try {
+        html = await renderExtensionTemplateAsync(`third-party/${EXT_NAME}`, 'workflow-editor');
+    } catch {
+        const res = await fetch(`/scripts/extensions/third-party/${EXT_NAME}/workflow-editor.html`);
+        html = await res.text();
+    }
+
+    const $root = $(html);
+    let workflow = opts.json || '';
+
+    const saveValue = () => {
+        workflow = String($root.find('#comfyvideo_workflow_editor_json').val() ?? '');
+        return true;
+    };
+
+    const popup = new Popup($root, POPUP_TYPE.CONFIRM, '', {
+        okButton: 'Save',
+        cancelButton: 'Cancel',
+        wide: true,
+        large: true,
+        onClosing: saveValue,
+    });
+    const resultPromise = popup.show();
+
+    $root.find('#comfyvideo_workflow_editor_name').text(opts.name || 'Workflow');
+    const $ta = $root.find('#comfyvideo_workflow_editor_json');
+    $ta.val(workflow);
+
+    const $list = $root.find('#comfyvideo_workflow_editor_placeholders');
+    $list.empty();
+    for (const key of opts.placeholders) {
+        const li = $(`<li data-placeholder="${key}" class="comfyvideo_workflow_editor_not_found" title="Click to copy">"%${key}%"</li>`);
+        li.on('click', () => {
+            navigator.clipboard?.writeText(`"%${key}%"`);
+            toastr.info(`Copied "%${key}%"`);
+        });
+        $list.append(li);
+    }
+
+    const checkPlaceholders = () => {
+        workflow = String($ta.val() ?? '');
+        $list.find('li[data-placeholder]').each(function () {
+            const key = this.getAttribute('data-placeholder');
+            const found = workflow.includes(`"%${key}%"`) || workflow.includes(`%${key}%`);
+            this.classList.toggle('comfyvideo_workflow_editor_not_found', !found);
+        });
+    };
+    $ta.on('input', checkPlaceholders);
+    checkPlaceholders();
+
+    const ok = await resultPromise;
+    if (!ok) return null;
+    return workflow;
 }
 
 function applySettingsToUi() {
@@ -256,16 +610,12 @@ function applySettingsToUi() {
     set('comfyvideo_llm_profile', st.llmProfileId);
     set('comfyvideo_max_prompt_tokens', st.maxPromptTokens);
     set('comfyvideo_use_llm_preset', st.useLlmPreset, 'checked');
-    set('comfyvideo_image_workflow', st.imageWorkflow);
     set('comfyvideo_context_messages', st.contextMessages);
     set('comfyvideo_include_character', st.includeCharacter, 'checked');
     set('comfyvideo_confirm_prompt', st.confirmImagePrompt, 'checked');
     set('comfyvideo_image_prompt_template', st.imagePromptTemplate);
-    set('comfyvideo_i2v_workflow', st.i2vWorkflow);
     set('comfyvideo_frames', st.frames);
     set('comfyvideo_fps', st.fps);
-    set('comfyvideo_motion_mode', st.motionPromptMode === 'auto' ? 'auto' : 'fixed');
-    set('comfyvideo_fixed_motion', st.fixedMotionPrompt);
     set('comfyvideo_motion_prompt_template', st.motionPromptTemplate);
     set('comfyvideo_confirm_motion', st.confirmMotionPrompt, 'checked');
     set('comfyvideo_seed_mode', st.seedMode);
@@ -289,7 +639,7 @@ async function onTestConnection() {
             status.className = 'comfyvideo-status ' + (ok ? 'ok' : 'err');
         }
         if (ok) toastr.success('ComfyUI reachable via ST proxy.', 'ComfyVideo');
-        else toastr.error('ComfyUI ping failed. Is Comfy running at the URL?', 'ComfyVideo');
+        else toastr.error('ComfyUI ping failed.', 'ComfyVideo');
     } catch (e) {
         if (status) {
             status.textContent = 'Error';
@@ -300,16 +650,9 @@ async function onTestConnection() {
 }
 
 function addWandButton() {
-    const extensionsMenu = document.getElementById('extensionsMenu');
-    const target = extensionsMenu
-        || document.getElementById('sd_wand_container')
-        || document.querySelector('#extensions_menu');
-    if (!target) {
-        console.warn(LOG, 'No menu container for wand button');
-        return;
-    }
-    if (document.getElementById('comfyvideo_wand_button')) return;
-
+    const target = document.getElementById('extensionsMenu')
+        || document.getElementById('sd_wand_container');
+    if (!target || document.getElementById('comfyvideo_wand_button')) return;
     const btn = document.createElement('div');
     btn.id = 'comfyvideo_wand_button';
     btn.className = 'list-group-item flex-container flexGap5';
@@ -332,16 +675,10 @@ function registerSlashCommands() {
             await generateSceneImage();
             return '';
         },
-        helpString: 'ComfyVideo: generate a scene still image from recent chat (then use Generate Video on the message).',
+        helpString: 'ComfyVideo: generate a scene still from recent RP chat.',
     }));
 }
 
-/**
- * @param {string} title
- * @param {string} initial
- * @param {string} okLabel
- * @returns {Promise<string|null>} null if cancelled
- */
 async function previewPrompt(title, initial, okLabel) {
     const edited = await callGenericPopup(
         title,
@@ -349,15 +686,10 @@ async function previewPrompt(title, initial, okLabel) {
         initial,
         { okButton: okLabel, cancelButton: 'Cancel', rows: 10, wide: true },
     );
-    if (edited === false || edited === null || edited === undefined) {
-        return null;
-    }
+    if (edited === false || edited === null || edited === undefined) return null;
     return String(edited).trim();
 }
 
-/**
- * Step 1 – scene image
- */
 async function generateSceneImage() {
     const st = getSettings();
     if (!st.enabled) {
@@ -369,7 +701,7 @@ async function generateSceneImage() {
         return;
     }
     if (!st.imageWorkflow?.trim()) {
-        toastr.error('Paste an Image workflow (API JSON) in ComfyVideo settings.');
+        toastr.error('Add an Image workflow (library → Edit / Save as…).');
         return;
     }
 
@@ -421,16 +753,14 @@ async function generateSceneImage() {
             width: dims.width,
             height: dims.height,
         });
-        const body = wrapPromptBody(filled, clientId);
-        const result = await comfy.generate(st.comfyUrl, body, status.signal);
+        const result = await comfy.generate(st.comfyUrl, wrapPromptBody(filled, clientId), status.signal);
 
         status.setMessage('Saving…');
         status.setProgress(100);
 
         const ctx = getContext();
         const charName = ctx.name2 || 'ComfyVideo';
-        const filename = `ComfyVideo_${humanizedDateTime()}`;
-        const path = await saveBase64AsFile(result.data, charName, filename, result.format);
+        const path = await saveBase64AsFile(result.data, charName, `ComfyVideo_${humanizedDateTime()}`, result.format);
 
         await attachGeneratedMedia({
             context: ctx,
@@ -441,7 +771,6 @@ async function generateSceneImage() {
                 imagePrompt,
                 seed,
                 step: 'image',
-                workflow: 'image',
                 width: dims.width,
                 height: dims.height,
             },
@@ -453,12 +782,11 @@ async function generateSceneImage() {
             systemUserName,
         });
 
-        toastr.success('Scene image attached. Use Generate Video on the message for I2V.', 'ComfyVideo');
+        toastr.success('Scene image attached.', 'ComfyVideo');
         injectI2vButtons();
     } catch (e) {
-        if (isAbortError(e)) {
-            toastr.info('Stopped.', 'ComfyVideo');
-        } else {
+        if (isAbortError(e)) toastr.info('Stopped.', 'ComfyVideo');
+        else {
             console.error(LOG, e);
             toastr.error(String(e.message || e), 'ComfyVideo');
         }
@@ -469,7 +797,6 @@ async function generateSceneImage() {
 }
 
 /**
- * Step 2 – I2V for a message
  * @param {number} messageId
  */
 async function generateVideoForMessage(messageId) {
@@ -483,7 +810,7 @@ async function generateVideoForMessage(messageId) {
         return;
     }
     if (!st.i2vWorkflow?.trim()) {
-        toastr.error('Paste an I2V workflow (API JSON) in ComfyVideo settings.');
+        toastr.error('Add an I2V workflow (library → Edit / Save as…).');
         return;
     }
 
@@ -493,7 +820,6 @@ async function generateVideoForMessage(messageId) {
         toastr.error('Message not found.');
         return;
     }
-
     const imageUrl = getMessageImageUrl(message);
     if (!imageUrl) {
         toastr.error('No image on this message to animate.');
@@ -504,15 +830,19 @@ async function generateVideoForMessage(messageId) {
     const dims = resolveDimensions(st.resolution);
     /** @type {ReturnType<typeof showStatus>|null} */
     let status = null;
+    const sourceImagePrompt = message.extra?.comfyVideo?.imagePrompt || '';
 
     try {
         status = showStatus({
             title: 'ComfyVideo I2V',
-            message: 'Preparing motion prompt…',
+            message: 'Building motion prompt (LLM)…',
             onStop: () => comfy.interrupt(st.comfyUrl),
         });
 
-        let motionPrompt = await prompts.buildMotionPrompt(st, status.signal);
+        let motionPrompt = await prompts.buildMotionPrompt(st, {
+            sourceImagePrompt,
+            signal: status.signal,
+        });
         if (status.aborted) throw new DOMException('Aborted', 'AbortError');
 
         if (st.confirmMotionPrompt) {
@@ -531,15 +861,8 @@ async function generateVideoForMessage(messageId) {
         }
 
         const blob = await comfy.fetchImageBlob(imageUrl, status.signal);
-        const uploaded = await comfy.uploadImage(
-            st.comfyUrl,
-            blob,
-            `comfyvideo_${Date.now()}.png`,
-            status.signal,
-        );
-        const imageName = uploaded.subfolder
-            ? `${uploaded.subfolder}/${uploaded.name}`
-            : uploaded.name;
+        const uploaded = await comfy.uploadImage(st.comfyUrl, blob, `comfyvideo_${Date.now()}.png`, status.signal);
+        const imageName = uploaded.subfolder ? `${uploaded.subfolder}/${uploaded.name}` : uploaded.name;
 
         status.setMessage('Generating video in ComfyUI…');
         const clientId = newClientId();
@@ -547,7 +870,6 @@ async function generateVideoForMessage(messageId) {
         status.setProgress(null);
 
         const seed = resolveSeed(st);
-        /** @type {Record<string, string|number>} */
         const placeholders = {
             prompt: motionPrompt,
             negative_prompt: st.negativePrompt,
@@ -562,19 +884,22 @@ async function generateVideoForMessage(messageId) {
         };
 
         const nodes = parseWorkflow(st.i2vWorkflow);
-        const warnings = validateWorkflow(nodes, 'i2v');
-        warnings.forEach(w => console.warn(LOG, w));
-
-        const filled = fillPlaceholders(nodes, placeholders);
-        const body = wrapPromptBody(filled, clientId);
-        const result = await comfy.generate(st.comfyUrl, body, status.signal);
+        validateWorkflow(nodes, 'i2v').forEach(w => console.warn(LOG, w));
+        const result = await comfy.generate(
+            st.comfyUrl,
+            wrapPromptBody(fillPlaceholders(nodes, placeholders), clientId),
+            status.signal,
+        );
 
         status.setMessage('Saving…');
         status.setProgress(100);
 
-        const charName = ctx.name2 || 'ComfyVideo';
-        const filename = `ComfyVideo_I2V_${humanizedDateTime()}`;
-        const path = await saveBase64AsFile(result.data, charName, filename, result.format);
+        const path = await saveBase64AsFile(
+            result.data,
+            ctx.name2 || 'ComfyVideo',
+            `ComfyVideo_I2V_${humanizedDateTime()}`,
+            result.format,
+        );
 
         const meta = {
             motionPrompt,
@@ -612,13 +937,11 @@ async function generateVideoForMessage(messageId) {
             });
         }
 
-        const kind = isVideoFormat(result.format) ? 'Video' : 'Output';
-        toastr.success(`${kind} attached.`, 'ComfyVideo');
+        toastr.success(`${isVideoFormat(result.format) ? 'Video' : 'Output'} attached.`, 'ComfyVideo');
         injectI2vButtons();
     } catch (e) {
-        if (isAbortError(e)) {
-            toastr.info('Stopped.', 'ComfyVideo');
-        } else {
+        if (isAbortError(e)) toastr.info('Stopped.', 'ComfyVideo');
+        else {
             console.error(LOG, e);
             toastr.error(String(e.message || e), 'ComfyVideo');
         }
@@ -631,7 +954,6 @@ async function generateVideoForMessage(messageId) {
 function injectI2vButtons() {
     const st = getSettings();
     if (!st.enabled) return;
-
     const ctx = getContext();
     document.querySelectorAll('#chat .mes').forEach(mesEl => {
         const id = Number(mesEl.getAttribute('mesid'));
@@ -639,11 +961,8 @@ function injectI2vButtons() {
         const message = ctx.chat[id];
         if (!message || !isComfyVideoMessage(message)) return;
         if (!getMessageImageUrl(message)) return;
-
         const buttons = mesEl.querySelector('.mes_buttons');
-        if (!buttons) return;
-        if (buttons.querySelector('.comfyvideo-i2v-btn')) return;
-
+        if (!buttons || buttons.querySelector('.comfyvideo-i2v-btn')) return;
         const btn = document.createElement('div');
         btn.className = 'mes_button comfyvideo-i2v-btn fa-solid fa-film interactable';
         btn.title = 'ComfyVideo: Generate Video (I2V)';
@@ -668,11 +987,8 @@ function setupMessageHooks() {
         event_types.MESSAGE_SWIPED,
         event_types.CHAT_CHANGED,
     ].filter(Boolean);
-
     for (const ev of events) {
-        eventSource.on(ev, () => {
-            setTimeout(injectI2vButtons, 50);
-        });
+        eventSource.on(ev, () => setTimeout(injectI2vButtons, 50));
     }
     setTimeout(injectI2vButtons, 500);
 }
@@ -686,7 +1002,6 @@ jQuery(async () => {
         generateQuietPrompt,
         ConnectionManagerRequestService,
     });
-
     await loadSettingsHtml();
     addWandButton();
     registerSlashCommands();

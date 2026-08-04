@@ -10,7 +10,6 @@
             <span>Enable extension</span>
         </label>
 
-        <!-- Connection -->
         <div class="comfyvideo-section">
             <div class="comfyvideo-section-title">Connection</div>
             <label for="comfyvideo_comfy_url">ComfyUI URL</label>
@@ -23,12 +22,10 @@
                 <span id="comfyvideo_conn_status" class="comfyvideo-status"></span>
             </div>
             <p class="comfyvideo-hint">
-                Generate uses SillyTavern’s Comfy proxy. Image upload for I2V needs ComfyUI CORS
-                (e.g. <code>--enable-cors-header *</code>). Settings are separate from built-in Image Generation.
+                Generate uses ST’s Comfy proxy. I2V upload needs ComfyUI CORS. Settings are separate from built-in Image Generation.
             </p>
         </div>
 
-        <!-- Shared resolution -->
         <div class="comfyvideo-section">
             <div class="comfyvideo-section-title">Resolution (image + video)</div>
             <label for="comfyvideo_resolution">Size</label>
@@ -36,17 +33,14 @@
                 <option value="portrait">768 × 1344 (portrait)</option>
                 <option value="landscape">1344 × 768 (landscape)</option>
             </select>
-            <p class="comfyvideo-hint">One size for both T2I and I2V workflows (<code>%width%</code> / <code>%height%</code>).</p>
         </div>
 
-        <!-- LLM -->
         <div class="comfyvideo-section">
-            <div class="comfyvideo-section-title">LLM prompt builder</div>
+            <div class="comfyvideo-section-title">LLM</div>
             <label for="comfyvideo_prompt_mode">Mode</label>
             <select id="comfyvideo_prompt_mode" class="text_pole">
                 <option value="profile">Connection profile (background)</option>
                 <option value="quiet">Quiet gen (current main model)</option>
-                <option value="manual">Manual (no LLM)</option>
             </select>
             <label for="comfyvideo_llm_profile">Connection profile</label>
             <select id="comfyvideo_llm_profile" class="text_pole"></select>
@@ -56,20 +50,33 @@
                 <input type="checkbox" id="comfyvideo_use_llm_preset" />
                 <span>Use completion preset from profile</span>
             </label>
-            <p class="comfyvideo-hint">
-                Off by default — RP/completion presets often add junk tags to image prompts.
-                Profile mode does not post to chat or switch your main connection.
-            </p>
-            <label for="comfyvideo_manual_prompt">Manual image prompt</label>
-            <textarea id="comfyvideo_manual_prompt" class="text_pole" rows="3" placeholder="Used when mode = Manual"></textarea>
+            <p class="comfyvideo-hint">Off by default (avoids RP preset junk in prompts). Image and video motion prompts always use the LLM.</p>
         </div>
 
-        <!-- Image -->
+        <!-- Image workflow library -->
         <div class="comfyvideo-section">
-            <div class="comfyvideo-section-title">Image (Step 1)</div>
-            <label for="comfyvideo_image_workflow">Image workflow (API JSON)</label>
-            <textarea id="comfyvideo_image_workflow" class="text_pole comfyvideo-workflow" rows="6"
-                placeholder='"%prompt%", "%negative_prompt%", "%seed%", "%width%", "%height%"'></textarea>
+            <div class="comfyvideo-section-title">Image workflow library</div>
+            <div class="comfyvideo-lib-row">
+                <select id="comfyvideo_lib_image_wf" class="text_pole comfyvideo-lib-select"></select>
+                <div id="comfyvideo_lib_image_wf_edit" class="menu_button menu_button_icon" title="Edit workflow JSON">
+                    <i class="fa-solid fa-pen-to-square"></i><span>Edit</span>
+                </div>
+                <div id="comfyvideo_lib_image_wf_saveas" class="menu_button" title="Save current as new">Save as…</div>
+                <div id="comfyvideo_lib_image_wf_delete" class="menu_button" title="Delete selected">Delete</div>
+            </div>
+            <p class="comfyvideo-hint">Opens the same style of API JSON editor as built-in Image Generation (placeholders highlighted).</p>
+        </div>
+
+        <!-- Image LLM library -->
+        <div class="comfyvideo-section">
+            <div class="comfyvideo-section-title">Image LLM instructions</div>
+            <div class="comfyvideo-lib-row">
+                <select id="comfyvideo_lib_image_prompt" class="text_pole comfyvideo-lib-select"></select>
+                <div id="comfyvideo_lib_image_prompt_save" class="menu_button">Save</div>
+                <div id="comfyvideo_lib_image_prompt_saveas" class="menu_button">Save as…</div>
+                <div id="comfyvideo_lib_image_prompt_delete" class="menu_button">Delete</div>
+            </div>
+            <textarea id="comfyvideo_image_prompt_template" class="text_pole" rows="5"></textarea>
             <div class="comfyvideo-row">
                 <label for="comfyvideo_context_messages">Context messages</label>
                 <input type="number" id="comfyvideo_context_messages" class="text_pole comfyvideo-num" min="1" max="50" />
@@ -82,37 +89,47 @@
                 <input type="checkbox" id="comfyvideo_confirm_prompt" />
                 <span>Preview / edit image prompt before generate</span>
             </label>
-            <label for="comfyvideo_image_prompt_template">Image LLM instructions</label>
-            <textarea id="comfyvideo_image_prompt_template" class="text_pole" rows="4"></textarea>
         </div>
 
-        <!-- Video -->
+        <!-- I2V workflow library -->
         <div class="comfyvideo-section">
-            <div class="comfyvideo-section-title">Video I2V (Step 2)</div>
-            <label for="comfyvideo_i2v_workflow">I2V workflow (API JSON)</label>
-            <textarea id="comfyvideo_i2v_workflow" class="text_pole comfyvideo-workflow" rows="6"
-                placeholder='"%image%" (LoadImage filename), "%prompt%", "%negative_prompt%", "%seed%", "%frames%", "%fps%", "%width%", "%height%"'></textarea>
+            <div class="comfyvideo-section-title">I2V workflow library</div>
+            <div class="comfyvideo-lib-row">
+                <select id="comfyvideo_lib_i2v_wf" class="text_pole comfyvideo-lib-select"></select>
+                <div id="comfyvideo_lib_i2v_wf_edit" class="menu_button menu_button_icon">
+                    <i class="fa-solid fa-pen-to-square"></i><span>Edit</span>
+                </div>
+                <div id="comfyvideo_lib_i2v_wf_saveas" class="menu_button">Save as…</div>
+                <div id="comfyvideo_lib_i2v_wf_delete" class="menu_button">Delete</div>
+            </div>
+        </div>
+
+        <!-- Video LLM library -->
+        <div class="comfyvideo-section">
+            <div class="comfyvideo-section-title">Video LLM instructions (I2V motion)</div>
+            <div class="comfyvideo-lib-row">
+                <select id="comfyvideo_lib_motion_prompt" class="text_pole comfyvideo-lib-select"></select>
+                <div id="comfyvideo_lib_motion_prompt_save" class="menu_button">Save</div>
+                <div id="comfyvideo_lib_motion_prompt_saveas" class="menu_button">Save as…</div>
+                <div id="comfyvideo_lib_motion_prompt_delete" class="menu_button">Delete</div>
+            </div>
+            <textarea id="comfyvideo_motion_prompt_template" class="text_pole" rows="5"></textarea>
+            <p class="comfyvideo-hint">
+                Use <code>{{clip_seconds}}</code> and <code>{{motion_lines}}</code> — filled from frames÷fps (about one line per 1–2s).
+            </p>
             <div class="comfyvideo-row">
                 <label for="comfyvideo_frames">Frames</label>
                 <input type="number" id="comfyvideo_frames" class="text_pole comfyvideo-num" min="1" max="256" />
                 <label for="comfyvideo_fps">FPS</label>
                 <input type="number" id="comfyvideo_fps" class="text_pole comfyvideo-num" min="1" max="60" />
+                <span id="comfyvideo_clip_length_hint" class="comfyvideo-hint" style="margin:0"></span>
             </div>
-            <label for="comfyvideo_motion_mode">Motion prompt source</label>
-            <select id="comfyvideo_motion_mode" class="text_pole">
-                <option value="fixed">Fixed text</option>
-                <option value="auto">Auto (LLM)</option>
-            </select>
-            <label for="comfyvideo_fixed_motion">Fixed / default motion prompt</label>
-            <textarea id="comfyvideo_fixed_motion" class="text_pole" rows="2"></textarea>
             <label class="checkbox_label" for="comfyvideo_confirm_motion">
                 <input type="checkbox" id="comfyvideo_confirm_motion" />
                 <span>Preview / edit motion prompt before I2V</span>
             </label>
-            <p class="comfyvideo-hint">I2V always uploads the still to ComfyUI <code>/upload/image</code>.</p>
         </div>
 
-        <!-- Shared generation -->
         <div class="comfyvideo-section">
             <div class="comfyvideo-section-title">Seed &amp; negative</div>
             <label for="comfyvideo_seed_mode">Seed</label>
@@ -126,7 +143,6 @@
             <textarea id="comfyvideo_negative" class="text_pole" rows="2"></textarea>
         </div>
 
-        <!-- Behavior -->
         <div class="comfyvideo-section">
             <div class="comfyvideo-section-title">Behavior</div>
             <label for="comfyvideo_attach_image">Attach image as</label>
@@ -139,6 +155,15 @@
                 <option value="same">Same message</option>
                 <option value="new">New message</option>
             </select>
+        </div>
+
+        <div class="comfyvideo-section">
+            <div class="comfyvideo-section-title">Library backup</div>
+            <div class="comfyvideo-row">
+                <div id="comfyvideo_export_libs" class="menu_button">Export libraries</div>
+                <div id="comfyvideo_import_libs" class="menu_button">Import libraries…</div>
+                <input type="file" id="comfyvideo_import_file" accept="application/json,.json" class="displayNone" />
+            </div>
         </div>
 
         <div class="comfyvideo-row comfyvideo-actions">

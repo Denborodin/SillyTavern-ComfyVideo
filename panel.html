@@ -25,6 +25,15 @@
                 </div>
             </div>
 
+            <div class="cv_panel_section">
+                <div class="cv_panel_label">Visual style</div>
+                <div class="cv_seg cv_seg_style" id="comfyvideo_panel_image_style" role="group">
+                    <button type="button" class="cv_seg_btn" data-value="photo">Photo</button>
+                    <button type="button" class="cv_seg_btn" data-value="digital_art">Digital art</button>
+                    <button type="button" class="cv_seg_btn" data-value="western_comic">Western comic</button>
+                </div>
+            </div>
+
             <details class="cv_panel_advanced">
                 <summary>Advanced options</summary>
                 <div class="cv_panel_section">
@@ -49,15 +58,6 @@
             <div class="cv_panel_section">
                 <div class="cv_panel_label">Image gen prompt (LLM instructions)</div>
                 <select id="comfyvideo_panel_image_prompt" class="text_pole"></select>
-            </div>
-            <div class="cv_panel_section">
-                <label class="cv_panel_label" for="comfyvideo_panel_image_style">Image style</label>
-                <select id="comfyvideo_panel_image_style" class="text_pole">
-                    <option value="realistic">Realistic</option>
-                    <option value="western_comic">Western comic</option>
-                    <option value="custom">Custom</option>
-                </select>
-                <textarea id="comfyvideo_panel_custom_image_style" class="text_pole cv_panel_custom_style" rows="3" placeholder="Optional custom style"></textarea>
             </div>
             <div class="cv_panel_section">
                 <div class="cv_panel_label">I2V workflow</div>

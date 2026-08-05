@@ -53,9 +53,9 @@ Per-message film button still works for I2V on a specific message.
 
 **Resolution:** 768×1344 or 1344×768 (shared).
 
-Custom styles are appended to the final image prompt and shown in the prompt
-preview. Instruction-library entries remain user-editable and are not replaced
-when the extension loads.
+Photo, realistic digital-art, and Western detailed-comic styles are appended
+to both final image and motion prompts, and shown in their previews. Instruction
+library entries remain user-editable and are not replaced when the extension loads.
 
 ## Bundled workflows
 

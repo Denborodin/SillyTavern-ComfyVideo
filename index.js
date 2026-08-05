@@ -68,8 +68,9 @@ const I2V_PLACEHOLDERS = [
 ];
 
 const IMAGE_STYLE_PROMPTS = Object.freeze({
-    realistic: 'Photorealistic cinematic still, natural adult anatomy, credible skin texture, realistic practical lighting, detailed environment, coherent depth and perspective.',
-    western_comic: 'Western graphic-novel illustration, realistic adult proportions, expressive natural faces, controlled ink contours, painted shading, textured brushwork, cinematic panel composition, no anime or manga styling.',
+    photo: 'Photorealistic cinematic imagery, natural adult anatomy, credible skin texture, realistic practical lighting, detailed environment, coherent depth and perspective.',
+    digital_art: 'Realistic high-detail digital art, believable adult anatomy, polished painted rendering, nuanced material texture, cinematic lighting, coherent depth and perspective.',
+    western_comic: 'Detailed Western graphic-novel art, realistic adult proportions, expressive natural faces, controlled ink contours, layered painted shading, textured brushwork, cinematic panel composition, no anime or manga styling.',
 });
 
 const defaultSettings = Object.freeze({
@@ -96,7 +97,7 @@ const defaultSettings = Object.freeze({
     seedMode: 'random',
     fixedSeed: 0,
     negativePrompt: 'blurry, static, low quality, text, watermark',
-    imageStylePreset: 'realistic',
+    imageStylePreset: 'photo',
     customImageStyle: '',
     installedBundledWorkflowVersions: {},
 
@@ -139,7 +140,8 @@ function getSettings() {
         st.resolution = (w >= h) ? 'landscape' : 'portrait';
     }
     if (st.promptMode === 'manual') st.promptMode = 'profile';
-    if (!['realistic', 'western_comic', 'custom'].includes(st.imageStylePreset)) {
+    if (st.imageStylePreset === 'realistic') st.imageStylePreset = 'photo';
+    if (!['photo', 'digital_art', 'western_comic', 'custom'].includes(st.imageStylePreset)) {
         st.imageStylePreset = defaultSettings.imageStylePreset;
     }
     // Always LLM for motion — drop fixed mode
@@ -170,7 +172,7 @@ function resolveSeed(settings) {
     return Math.floor(Math.random() * 2 ** 32);
 }
 
-function appendImageStyle(prompt, settings) {
+function appendVisualStyle(prompt, settings) {
     const scene = String(prompt || '').trim();
     const style = settings.imageStylePreset === 'custom'
         ? String(settings.customImageStyle || '').trim()
@@ -794,7 +796,7 @@ async function generateSceneImage() {
         });
 
         let imagePrompt = await prompts.buildImagePrompt(st, status.signal);
-        imagePrompt = appendImageStyle(imagePrompt, st);
+        imagePrompt = appendVisualStyle(imagePrompt, st);
         if (status.aborted) throw new DOMException('Aborted', 'AbortError');
 
         if (st.confirmImagePrompt) {
@@ -920,6 +922,7 @@ async function generateVideoForMessage(messageId) {
             sourceImagePrompt,
             signal: status.signal,
         });
+        motionPrompt = appendVisualStyle(motionPrompt, st);
         if (status.aborted) throw new DOMException('Aborted', 'AbortError');
 
         if (st.confirmMotionPrompt) {

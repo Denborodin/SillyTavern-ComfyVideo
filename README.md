@@ -37,6 +37,10 @@ Wand menu → **ComfyVideo** (or `/comfyvideo`) opens a floating panel (Pathweav
 
 Per-message film button still works for I2V on a specific message.
 
+**Generate scene video** runs the existing scene-image flow followed by H3 for
+the exact still it just attached. Image and motion prompt previews still appear
+when enabled in settings.
+
 ## Setup
 
 1. ComfyUI + CORS for upload/WS  
@@ -56,6 +60,23 @@ Per-message film button still works for I2V on a specific message.
 Custom styles are appended to the final image prompt and shown in the prompt
 preview. Instruction-library entries remain user-editable and are not replaced
 when the extension loads.
+
+## Bundled workflows
+
+The extension includes editable copies of the tested local workflows below.
+They are added only once and are never overwritten; use **Add missing bundled
+workflows** in Library backup to explicitly restore a deleted copy.
+
+- **Z-Image Turbo** uses `z_image_turbo_bf16.safetensors`, `ae.safetensors`,
+  and `qwen_3_4b.safetensors`. It accepts prompt, negative prompt, seed, width,
+  and height placeholders.
+- **MiniMax H3 I2V** uses the MiniMax H3 UNet, Qwen3-VL clip, video/audio VAEs,
+  and the built-in `MiniMaxH3ImageToVideo` plus video nodes. It accepts image,
+  prompt, seed, frames, FPS, width, and height placeholders.
+
+You can edit, duplicate, delete, or replace either workflow in the normal
+library. The committed assets include only the workflows supplied by the local
+tested setup; other models remain supported through user-imported API JSON.
 
 ## License
 

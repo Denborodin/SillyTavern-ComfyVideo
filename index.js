@@ -52,6 +52,7 @@ import {
     exportLibrariesBlob,
     importLibraries,
 } from './lib/library.js';
+import { loadBundledWorkflows, seedBundledWorkflows } from './lib/bundled-workflows.js';
 import { createPanel } from './lib/panel.js';
 
 const MODULE = 'ComfyVideo';
@@ -97,6 +98,7 @@ const defaultSettings = Object.freeze({
     negativePrompt: 'blurry, static, low quality, text, watermark',
     imageStylePreset: 'realistic',
     customImageStyle: '',
+    installedBundledWorkflowVersions: {},
 
     attachImageMode: 'last',
     attachVideoMode: 'same',
@@ -153,6 +155,14 @@ function getSettings() {
 
 function saveSettings() {
     saveSettingsDebounced();
+}
+
+async function addBundledWorkflows(restore = false) {
+    const settings = getSettings();
+    const bundled = await loadBundledWorkflows(EXT_NAME);
+    const added = seedBundledWorkflows(settings, bundled, restore);
+    if (added) saveSettings();
+    return added;
 }
 
 function resolveSeed(settings) {
@@ -334,6 +344,18 @@ function bindSettingsUi() {
 
     document.getElementById('comfyvideo_import_libs')?.addEventListener('click', () => {
         document.getElementById('comfyvideo_import_file')?.click();
+    });
+    document.getElementById('comfyvideo_restore_bundled')?.addEventListener('click', async () => {
+        try {
+            const added = await addBundledWorkflows(true);
+            applySettingsToUi();
+            refreshLibraryDropdowns();
+            panel?.refresh();
+            toastr.info(added ? `${added} bundled workflow${added === 1 ? '' : 's'} added.` : 'All bundled workflows are already present.', 'ComfyVideo');
+        } catch (err) {
+            console.error(LOG, err);
+            toastr.error(String(err.message || err), 'ComfyVideo');
+        }
     });
     document.getElementById('comfyvideo_import_file')?.addEventListener('change', async e => {
         const file = /** @type {HTMLInputElement} */ (e.target).files?.[0];
@@ -817,7 +839,7 @@ async function generateSceneImage() {
         const charName = ctx.name2 || 'ComfyVideo';
         const path = await saveBase64AsFile(result.data, charName, `ComfyVideo_${humanizedDateTime()}`, result.format);
 
-        await attachGeneratedMedia({
+        const attached = await attachGeneratedMedia({
             context: ctx,
             url: path,
             format: result.format,
@@ -839,6 +861,7 @@ async function generateSceneImage() {
 
         toastr.success('Scene image attached.', 'ComfyVideo');
         injectI2vButtons();
+        return attached.messageId;
     } catch (e) {
         if (isAbortError(e)) toastr.info('Stopped.', 'ComfyVideo');
         else {
@@ -849,6 +872,12 @@ async function generateSceneImage() {
         status?.close();
         busy = false;
     }
+}
+
+async function generateSceneVideo() {
+    const messageId = await generateSceneImage();
+    if (messageId == null) return;
+    await generateVideoForMessage(messageId);
 }
 
 /**
@@ -1051,6 +1080,11 @@ function setupMessageHooks() {
 jQuery(async () => {
     console.info(LOG, 'Loading…');
     getSettings();
+    try {
+        await addBundledWorkflows();
+    } catch (err) {
+        console.warn(LOG, 'Bundled workflows were not loaded', err);
+    }
     comfy = createComfyClient(getRequestHeaders);
     prompts = createPromptBuilder({
         getContext,
@@ -1066,6 +1100,7 @@ jQuery(async () => {
             updateClipLengthHint();
         },
         generateSceneImage,
+        generateSceneVideo,
         generateVideoForMessage,
         getContext,
         isComfyVideoMessage,

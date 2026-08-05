@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "workflows": [
+    {
+      "id": "builtin.image.z-image-turbo",
+      "version": 1,
+      "name": "Z-Image Turbo",
+      "kind": "image",
+      "file": "image/z-image-turbo.json",
+      "description": "Z-Image Turbo text-to-image workflow extracted from the tested local ComfyVideo setup.",
+      "requiredPlaceholders": ["%prompt%", "%seed%", "%width%", "%height%"],
+      "optionalPlaceholders": ["%negative_prompt%"]
+    },
+    {
+      "id": "builtin.video.minimax-h3-i2v",
+      "version": 1,
+      "name": "MiniMax H3 I2V",
+      "kind": "i2v",
+      "file": "video/minimax-h3-i2v.json",
+      "description": "MiniMax H3 image-to-video workflow extracted from the tested local ComfyVideo setup.",
+      "requiredPlaceholders": ["%image%", "%prompt%", "%seed%", "%frames%", "%fps%", "%width%", "%height%"],
+      "optionalPlaceholders": ["%negative_prompt%"]
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+# ComfyVideo roadmap
+
+## Current state
+
+ComfyVideo provides a two-step scene image to MiniMax H3 video flow with
+editable libraries, prompt previews, workflow validation, mobile-friendly UI,
+and bundled Z-Image Turbo plus MiniMax H3 workflows.
+
+Completed recently:
+
+- Compact panel with portrait/landscape controls and shared Photo, Digital art,
+  and Western comic styles.
+- H3 motion intensity: Subtle, Normal, and Energetic.
+- Structured timestamped H3 motion-prompt preset.
+- Immediate extension-side cancellation for quiet and connection-profile LLM
+  prompt generation.
+- Bundled workflow seeding, safe restore, and editable user copies.
+- Last-still thumbnail preview for the separate Generate video action.
+- Selectable video source picker with I2V dimensions locked to the selected
+  still's saved metadata.
+- Quick video-duration presets: 5s / 120 frames, 8s / 192 frames, and
+  10s / 240 frames, all at 24 FPS.
+
+The combined Scene to Image to Video button was deliberately removed. The
+day-to-day flow remains separate Generate scene image and Generate video
+actions.
+
+## Next recommended slice
+
+### 1. Make results reproducible
+
+- Store workflow ID, workflow version, style, intensity, dimensions, frames,
+  FPS, seed, and final prompts with each generated image/video.
+- Add Retry video, Edit and retry, and New motion prompt actions without
+  needing to regenerate the still.
+
+### 2. Verify MiniMax H3 timing
+
+- Test the bundled H3 workflow with 120, 192, and 240 frame requests at
+  24 FPS.
+- Document any model-specific length alignment or maximum-duration rules.
+
+## Backlog
+
+### Roleplay quality
+
+- Character appearance override for persistent visual traits.
+- Prompt history and prompt variants on generated messages.
+- Few-shot image and H3 prompt examples.
+- Group-chat context that identifies active visible speakers.
+- Negative-prompt library.
+
+### Panel and workflow UX
+
+- In-panel generation status and stop control.
+- Quick instruction editor next to each preset selector.
+- Keyboard shortcuts.
+- ComfyUI availability indicator and disabled actions when offline.
+- Import workflows from SillyTavern user workflow files.
+- Placeholder auto-map assistance for imported API JSON.
+- Named workflow/profile packs.
+
+### Reliability
+
+- Unit tests for placeholder substitution, clip timing, library migration,
+  style/intensity assembly, and cancellation.
+- Persist large libraries outside extension settings if settings-size limits
+  become a problem.
+- Theme and i18n pass.
+
+### Later
+
+- Auto-animate generated stills.
+- Generated-media gallery.
+- Lip-sync/TTS integration.
+- Character reference images.
+- Publish to the SillyTavern extension index.

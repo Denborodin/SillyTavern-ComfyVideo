@@ -39,10 +39,9 @@
                 <div class="cv_panel_section">
                     <div class="cv_panel_label">Video length</div>
                 <div class="cv_seg cv_seg_wrap" id="comfyvideo_panel_length" role="group">
-                    <button type="button" class="cv_seg_btn" data-seconds="2" data-fps="8">2s</button>
-                    <button type="button" class="cv_seg_btn" data-seconds="3" data-fps="8">3s</button>
-                    <button type="button" class="cv_seg_btn" data-seconds="4" data-fps="8">4s</button>
-                    <button type="button" class="cv_seg_btn" data-seconds="6" data-fps="8">6s</button>
+                    <button type="button" class="cv_seg_btn" data-seconds="5" data-fps="24">5s</button>
+                    <button type="button" class="cv_seg_btn" data-seconds="8" data-fps="24">8s</button>
+                    <button type="button" class="cv_seg_btn" data-seconds="10" data-fps="24">10s</button>
                 </div>
                     <div class="cv_panel_row cv_panel_custom_len">
                     <label>Frames <input type="number" id="comfyvideo_panel_frames" class="text_pole cv_num" min="1" max="256" /></label>
@@ -83,6 +82,8 @@
                     <i class="fa-solid fa-image"></i>
                     Generate scene image
                 </button>
+                <label class="cv_panel_label" for="comfyvideo_panel_video_source">Video source</label>
+                <select id="comfyvideo_panel_video_source" class="text_pole"></select>
                 <button type="button" class="cv_action_btn" id="comfyvideo_panel_gen_video">
                     <i class="fa-solid fa-film"></i>
                     Generate video

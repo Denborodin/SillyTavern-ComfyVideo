@@ -176,6 +176,15 @@ function resolveSeed(settings) {
     return Math.floor(Math.random() * 2 ** 32);
 }
 
+function resolveVideoDimensions(settings, message) {
+    const width = Number(message?.extra?.comfyVideo?.width);
+    const height = Number(message?.extra?.comfyVideo?.height);
+    if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+        return { width, height };
+    }
+    return resolveDimensions(settings.resolution);
+}
+
 function appendVisualStyle(prompt, settings) {
     const scene = String(prompt || '').trim();
     const style = settings.imageStylePreset === 'custom'
@@ -912,7 +921,7 @@ async function generateVideoForMessage(messageId) {
     }
 
     busy = true;
-    const dims = resolveDimensions(st.resolution);
+    const dims = resolveVideoDimensions(st, message);
     /** @type {ReturnType<typeof showStatus>|null} */
     let status = null;
     const sourceImagePrompt = message.extra?.comfyVideo?.imagePrompt || '';
@@ -991,6 +1000,7 @@ async function generateVideoForMessage(messageId) {
             motionPrompt,
             seed,
             step: 'i2v',
+            sourceMessageId: messageId,
             frames: st.frames,
             fps: st.fps,
             width: dims.width,

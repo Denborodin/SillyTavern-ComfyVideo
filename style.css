@@ -361,6 +361,40 @@
     min-width: 0;
 }
 
+.cv_panel_advanced {
+    border: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor, #444) 70%, transparent);
+    border-radius: 8px;
+    padding: 0 10px 10px;
+}
+
+.cv_panel_advanced > summary {
+    cursor: pointer;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    font-weight: 600;
+    list-style: none;
+}
+
+.cv_panel_advanced > summary::-webkit-details-marker {
+    display: none;
+}
+
+.cv_panel_advanced > summary::before {
+    content: "›";
+    margin-right: 0.5em;
+    font-size: 1.3em;
+    transition: transform 0.15s ease;
+}
+
+.cv_panel_advanced[open] > summary::before {
+    transform: rotate(90deg);
+}
+
+.cv_panel_advanced > .cv_panel_section {
+    margin-top: 10px;
+}
+
 .cv_panel_label {
     font-size: 0.8rem;
     font-weight: 600;

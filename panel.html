@@ -25,20 +25,22 @@
                 </div>
             </div>
 
-            <div class="cv_panel_section">
-                <div class="cv_panel_label">Video length</div>
+            <details class="cv_panel_advanced">
+                <summary>Advanced options</summary>
+                <div class="cv_panel_section">
+                    <div class="cv_panel_label">Video length</div>
                 <div class="cv_seg cv_seg_wrap" id="comfyvideo_panel_length" role="group">
                     <button type="button" class="cv_seg_btn" data-seconds="2" data-fps="8">2s</button>
                     <button type="button" class="cv_seg_btn" data-seconds="3" data-fps="8">3s</button>
                     <button type="button" class="cv_seg_btn" data-seconds="4" data-fps="8">4s</button>
                     <button type="button" class="cv_seg_btn" data-seconds="6" data-fps="8">6s</button>
                 </div>
-                <div class="cv_panel_row cv_panel_custom_len">
+                    <div class="cv_panel_row cv_panel_custom_len">
                     <label>Frames <input type="number" id="comfyvideo_panel_frames" class="text_pole cv_num" min="1" max="256" /></label>
                     <label>FPS <input type="number" id="comfyvideo_panel_fps" class="text_pole cv_num" min="1" max="60" /></label>
                     <span id="comfyvideo_panel_clip_hint" class="cv_panel_hint"></span>
+                    </div>
                 </div>
-            </div>
 
             <div class="cv_panel_section">
                 <div class="cv_panel_label">Image workflow</div>
@@ -65,6 +67,8 @@
                 <div class="cv_panel_label">Video gen prompt (LLM instructions)</div>
                 <select id="comfyvideo_panel_motion_prompt" class="text_pole"></select>
             </div>
+
+            </details>
 
             <div class="cv_panel_section cv_panel_actions">
                 <button type="button" class="cv_action_btn primary" id="comfyvideo_panel_gen_scene_video">

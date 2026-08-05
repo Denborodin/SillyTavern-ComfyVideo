@@ -66,6 +66,11 @@ const I2V_PLACEHOLDERS = [
     'prompt', 'negative_prompt', 'seed', 'frames', 'fps', 'width', 'height',
 ];
 
+const IMAGE_STYLE_PROMPTS = Object.freeze({
+    realistic: 'Photorealistic cinematic still, natural adult anatomy, credible skin texture, realistic practical lighting, detailed environment, coherent depth and perspective.',
+    western_comic: 'Western graphic-novel illustration, realistic adult proportions, expressive natural faces, controlled ink contours, painted shading, textured brushwork, cinematic panel composition, no anime or manga styling.',
+});
+
 const defaultSettings = Object.freeze({
     enabled: true,
     comfyUrl: 'http://127.0.0.1:8188',
@@ -90,6 +95,8 @@ const defaultSettings = Object.freeze({
     seedMode: 'random',
     fixedSeed: 0,
     negativePrompt: 'blurry, static, low quality, text, watermark',
+    imageStylePreset: 'realistic',
+    customImageStyle: '',
 
     attachImageMode: 'last',
     attachVideoMode: 'same',
@@ -130,6 +137,9 @@ function getSettings() {
         st.resolution = (w >= h) ? 'landscape' : 'portrait';
     }
     if (st.promptMode === 'manual') st.promptMode = 'profile';
+    if (!['realistic', 'western_comic', 'custom'].includes(st.imageStylePreset)) {
+        st.imageStylePreset = defaultSettings.imageStylePreset;
+    }
     // Always LLM for motion — drop fixed mode
     delete st.motionPromptMode;
     delete st.fixedMotionPrompt;
@@ -148,6 +158,14 @@ function saveSettings() {
 function resolveSeed(settings) {
     if (settings.seedMode === 'fixed') return Number(settings.fixedSeed) || 0;
     return Math.floor(Math.random() * 2 ** 32);
+}
+
+function appendImageStyle(prompt, settings) {
+    const scene = String(prompt || '').trim();
+    const style = settings.imageStylePreset === 'custom'
+        ? String(settings.customImageStyle || '').trim()
+        : (IMAGE_STYLE_PROMPTS[settings.imageStylePreset] || '');
+    return style ? `${scene}\n\nVisual style: ${style}` : scene;
 }
 
 function populateProfileDropdown() {
@@ -268,6 +286,8 @@ function bindSettingsUi() {
         ['comfyvideo_seed_mode', 'seedMode', 'value'],
         ['comfyvideo_fixed_seed', 'fixedSeed', 'number'],
         ['comfyvideo_negative', 'negativePrompt', 'value'],
+        ['comfyvideo_image_style', 'imageStylePreset', 'value'],
+        ['comfyvideo_custom_image_style', 'customImageStyle', 'value'],
         ['comfyvideo_attach_image', 'attachImageMode', 'value'],
         ['comfyvideo_attach_video', 'attachVideoMode', 'value'],
     ];
@@ -282,6 +302,10 @@ function bindSettingsUi() {
             else if (kind === 'number') st[key] = Number(/** @type {HTMLInputElement} */ (el).value);
             else st[key] = /** @type {HTMLInputElement} */ (el).value;
             if (key === 'frames' || key === 'fps') updateClipLengthHint();
+            if (key === 'imageStylePreset') {
+                document.getElementById('comfyvideo_custom_image_style_wrap')?.classList.toggle(
+                    'displayNone', st.imageStylePreset !== 'custom');
+            }
             saveSettings();
         });
     }
@@ -410,6 +434,12 @@ function wireWorkflowLibrary(cfg) {
             placeholders: cfg.kind === 'i2v' ? I2V_PLACEHOLDERS : IMAGE_PLACEHOLDERS,
         });
         if (result == null) return;
+        try {
+            validateWorkflow(parseWorkflow(result), cfg.kind);
+        } catch (err) {
+            toastr.error(String(err.message || err), 'ComfyVideo');
+            return;
+        }
         st[cfg.fieldKey] = result;
         if (item) {
             item.json = result;
@@ -439,6 +469,12 @@ function wireWorkflowLibrary(cfg) {
                 placeholders: cfg.kind === 'i2v' ? I2V_PLACEHOLDERS : IMAGE_PLACEHOLDERS,
             });
             if (edited == null) return;
+            try {
+                validateWorkflow(parseWorkflow(edited), cfg.kind);
+            } catch (err) {
+                toastr.error(String(err.message || err), 'ComfyVideo');
+                return;
+            }
             json = edited;
             st[cfg.fieldKey] = json;
         }
@@ -624,6 +660,10 @@ function applySettingsToUi() {
     set('comfyvideo_seed_mode', st.seedMode);
     set('comfyvideo_fixed_seed', st.fixedSeed);
     set('comfyvideo_negative', st.negativePrompt);
+    set('comfyvideo_image_style', st.imageStylePreset);
+    set('comfyvideo_custom_image_style', st.customImageStyle);
+    document.getElementById('comfyvideo_custom_image_style_wrap')?.classList.toggle(
+        'displayNone', st.imageStylePreset !== 'custom');
     set('comfyvideo_attach_image', st.attachImageMode);
     set('comfyvideo_attach_video', st.attachVideoMode);
 }
@@ -732,6 +772,7 @@ async function generateSceneImage() {
         });
 
         let imagePrompt = await prompts.buildImagePrompt(st, status.signal);
+        imagePrompt = appendImageStyle(imagePrompt, st);
         if (status.aborted) throw new DOMException('Aborted', 'AbortError');
 
         if (st.confirmImagePrompt) {

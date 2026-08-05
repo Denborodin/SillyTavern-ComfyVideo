@@ -36,6 +36,20 @@
         </div>
 
         <div class="comfyvideo-section">
+            <div class="comfyvideo-section-title">Image style</div>
+            <label for="comfyvideo_image_style">Style</label>
+            <select id="comfyvideo_image_style" class="text_pole">
+                <option value="realistic">Realistic</option>
+                <option value="western_comic">Western comic</option>
+                <option value="custom">Custom</option>
+            </select>
+            <div id="comfyvideo_custom_image_style_wrap" class="displayNone">
+                <label for="comfyvideo_custom_image_style">Custom style</label>
+                <textarea id="comfyvideo_custom_image_style" class="text_pole" rows="3" placeholder="Optional style guidance added to the image prompt"></textarea>
+            </div>
+        </div>
+
+        <div class="comfyvideo-section">
             <div class="comfyvideo-section-title">LLM</div>
             <label for="comfyvideo_prompt_mode">Mode</label>
             <select id="comfyvideo_prompt_mode" class="text_pole">

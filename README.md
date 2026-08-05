@@ -31,6 +31,7 @@ Wand menu → **ComfyVideo** (or `/comfyvideo`) opens a floating panel (Pathweav
 - Portrait / landscape  
 - Video length presets (2s–6s) + frames/FPS  
 - Pick image & I2V workflows and LLM instruction presets  
+- Choose Realistic, Western comic, or a saved custom image style
 - **Generate scene image** / **Generate video** (latest ComfyVideo still)  
 - Link to full extension settings  
 
@@ -51,6 +52,10 @@ Per-message film button still works for I2V on a specific message.
 **I2V:** `"%image%"`, `"%prompt%"`, `"%frames%"`, `"%fps%"`, …  
 
 **Resolution:** 768×1344 or 1344×768 (shared).
+
+Custom styles are appended to the final image prompt and shown in the prompt
+preview. Instruction-library entries remain user-editable and are not replaced
+when the extension loads.
 
 ## License
 

@@ -103,6 +103,11 @@
     min-width: 10em;
 }
 
+#comfyvideo_settings .comfyvideo-row > *,
+#comfyvideo_settings .comfyvideo-lib-row > * {
+    min-width: 0;
+}
+
 #comfyvideo_settings .displayNone {
     display: none !important;
 }
@@ -281,9 +286,9 @@
 }
 
 .cv_modal {
-    width: 100%;
+    width: min(100%, 440px);
     max-width: 440px;
-    max-height: 90vh;
+    max-height: calc(100dvh - 32px);
     background: var(--SmartThemeBlurTintColor, rgba(30, 30, 40, 0.98));
     border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.12));
     border-radius: 12px;
@@ -346,12 +351,14 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
+    min-width: 0;
 }
 
 .cv_panel_section {
     display: flex;
     flex-direction: column;
     gap: 6px;
+    min-width: 0;
 }
 
 .cv_panel_label {
@@ -440,6 +447,11 @@
     box-sizing: border-box;
 }
 
+.cv_panel_custom_style {
+    resize: vertical;
+    min-height: 4.5em;
+}
+
 .cv_panel_actions {
     gap: 8px;
     margin-top: 4px;
@@ -501,8 +513,101 @@
 }
 
 @media (max-width: 480px) {
+    .cv_modal_overlay {
+        align-items: flex-start;
+        padding: 8px;
+        overflow-y: auto;
+    }
+
     .cv_modal {
         max-width: 100%;
-        max-height: 95vh;
+        max-height: calc(100dvh - 16px);
+    }
+
+    .cv_modal_header,
+    .cv_modal_body {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+
+    .cv_modal_close {
+        width: 44px;
+        height: 44px;
+    }
+
+    .cv_seg_btn,
+    .cv_action_btn {
+        min-height: 44px;
+    }
+
+    .cv_panel_custom_len {
+        align-items: stretch;
+    }
+
+    .cv_panel_custom_len label {
+        flex: 1 1 8em;
+        justify-content: space-between;
+    }
+
+    .cv_panel_custom_len .cv_panel_hint {
+        flex-basis: 100%;
+    }
+
+    .comfyvideo-status-panel {
+        right: 8px;
+        bottom: 8px;
+        min-width: 0;
+        width: calc(100vw - 16px);
+        max-width: none;
+        box-sizing: border-box;
+    }
+
+    #comfyvideo_settings .comfyvideo-lib-row > .menu_button,
+    #comfyvideo_settings .comfyvideo-row > .menu_button {
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    #comfyvideo_settings .comfyvideo-lib-select {
+        flex-basis: 100%;
+        min-width: 0;
+    }
+
+    #comfyvideo_settings .comfyvideo-row {
+        align-items: stretch;
+    }
+
+    #comfyvideo_settings .comfyvideo-num {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    .comfyvideo_workflow_editor {
+        min-height: 0;
+        max-width: 100%;
+    }
+
+    .comfyvideo_workflow_editor_content {
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    #comfyvideo_workflow_editor_json {
+        min-height: 42dvh;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    .comfyvideo_workflow_editor_placeholder_container {
+        flex: 0 0 auto;
+        max-width: none;
+        max-height: 12em;
+    }
+
+    .comfyvideo_workflow_editor_placeholder_list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        column-gap: 0.75em;
     }
 }

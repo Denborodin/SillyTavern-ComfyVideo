@@ -31,6 +31,7 @@ Wand menu → **ComfyVideo** (or `/comfyvideo`) opens a floating panel (Pathweav
 - Portrait / landscape  
 - Video length presets (2s–6s) + frames/FPS  
 - Pick image & I2V workflows and LLM instruction presets  
+- Choose Realistic, Western comic, or a saved custom image style
 - **Generate scene image** / **Generate video** (latest ComfyVideo still)  
 - Link to full extension settings  
 
@@ -51,6 +52,27 @@ Per-message film button still works for I2V on a specific message.
 **I2V:** `"%image%"`, `"%prompt%"`, `"%frames%"`, `"%fps%"`, …  
 
 **Resolution:** 768×1344 or 1344×768 (shared).
+
+Photo, realistic digital-art, and Western detailed-comic styles are appended
+to both final image and motion prompts, and shown in their previews. Instruction
+library entries remain user-editable and are not replaced when the extension loads.
+
+## Bundled workflows
+
+The extension includes editable copies of the tested local workflows below.
+They are added only once and are never overwritten; use **Add missing bundled
+workflows** in Library backup to explicitly restore a deleted copy.
+
+- **Z-Image Turbo** uses `z_image_turbo_bf16.safetensors`, `ae.safetensors`,
+  and `qwen_3_4b.safetensors`. It accepts prompt, negative prompt, seed, width,
+  and height placeholders.
+- **MiniMax H3 I2V** uses the MiniMax H3 UNet, Qwen3-VL clip, video/audio VAEs,
+  and the built-in `MiniMaxH3ImageToVideo` plus video nodes. It accepts image,
+  prompt, seed, frames, FPS, width, and height placeholders.
+
+You can edit, duplicate, delete, or replace either workflow in the normal
+library. The committed assets include only the workflows supplied by the local
+tested setup; other models remain supported through user-imported API JSON.
 
 ## License
 

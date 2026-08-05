@@ -26,20 +26,39 @@
             </div>
 
             <div class="cv_panel_section">
-                <div class="cv_panel_label">Video length</div>
+                <div class="cv_panel_label">Visual style</div>
+                <div class="cv_seg cv_seg_style" id="comfyvideo_panel_image_style" role="group">
+                    <button type="button" class="cv_seg_btn" data-value="photo">Photo</button>
+                    <button type="button" class="cv_seg_btn" data-value="digital_art">Digital art</button>
+                    <button type="button" class="cv_seg_btn" data-value="western_comic">Western comic</button>
+                </div>
+            </div>
+
+            <details class="cv_panel_advanced">
+                <summary>Advanced options</summary>
+                <div class="cv_panel_section">
+                    <div class="cv_panel_label">Video length</div>
                 <div class="cv_seg cv_seg_wrap" id="comfyvideo_panel_length" role="group">
                     <button type="button" class="cv_seg_btn" data-seconds="2" data-fps="8">2s</button>
                     <button type="button" class="cv_seg_btn" data-seconds="3" data-fps="8">3s</button>
                     <button type="button" class="cv_seg_btn" data-seconds="4" data-fps="8">4s</button>
                     <button type="button" class="cv_seg_btn" data-seconds="6" data-fps="8">6s</button>
                 </div>
-                <div class="cv_panel_row cv_panel_custom_len">
+                    <div class="cv_panel_row cv_panel_custom_len">
                     <label>Frames <input type="number" id="comfyvideo_panel_frames" class="text_pole cv_num" min="1" max="256" /></label>
                     <label>FPS <input type="number" id="comfyvideo_panel_fps" class="text_pole cv_num" min="1" max="60" /></label>
                     <span id="comfyvideo_panel_clip_hint" class="cv_panel_hint"></span>
+                    </div>
+                </div>
+
+            <div class="cv_panel_section">
+                <div class="cv_panel_label">Motion intensity</div>
+                <div class="cv_seg cv_seg_style" id="comfyvideo_panel_motion_intensity" role="group">
+                    <button type="button" class="cv_seg_btn" data-value="subtle">Subtle</button>
+                    <button type="button" class="cv_seg_btn" data-value="normal">Normal</button>
+                    <button type="button" class="cv_seg_btn" data-value="energetic">Energetic</button>
                 </div>
             </div>
-
             <div class="cv_panel_section">
                 <div class="cv_panel_label">Image workflow</div>
                 <select id="comfyvideo_panel_image_wf" class="text_pole"></select>
@@ -57,6 +76,8 @@
                 <select id="comfyvideo_panel_motion_prompt" class="text_pole"></select>
             </div>
 
+            </details>
+
             <div class="cv_panel_section cv_panel_actions">
                 <button type="button" class="cv_action_btn primary" id="comfyvideo_panel_gen_image">
                     <i class="fa-solid fa-image"></i>
@@ -69,6 +90,7 @@
                 <p class="cv_panel_hint" id="comfyvideo_panel_video_hint">
                     Video uses the latest ComfyVideo still in this chat (or the selected message’s film button).
                 </p>
+                <img id="comfyvideo_panel_video_preview" class="cv_panel_video_preview" alt="Still selected for video generation" hidden />
             </div>
 
             <div class="cv_panel_footer">

@@ -52,6 +52,7 @@ import {
     exportLibrariesBlob,
     importLibraries,
 } from './lib/library.js';
+import { loadBundledWorkflows, seedBundledWorkflows } from './lib/bundled-workflows.js';
 import { createPanel } from './lib/panel.js';
 
 const MODULE = 'ComfyVideo';
@@ -65,6 +66,12 @@ const I2V_PLACEHOLDERS = [
     'image', 'image_name', 'image_subfolder',
     'prompt', 'negative_prompt', 'seed', 'frames', 'fps', 'width', 'height',
 ];
+
+const IMAGE_STYLE_PROMPTS = Object.freeze({
+    photo: 'Photorealistic cinematic imagery, natural adult anatomy, credible skin texture, realistic practical lighting, detailed environment, coherent depth and perspective.',
+    digital_art: 'Realistic high-detail digital art, believable adult anatomy, polished painted rendering, nuanced material texture, cinematic lighting, coherent depth and perspective.',
+    western_comic: 'Detailed Western graphic-novel art, realistic adult proportions, expressive natural faces, controlled ink contours, layered painted shading, textured brushwork, cinematic panel composition, no anime or manga styling.',
+});
 
 const defaultSettings = Object.freeze({
     enabled: true,
@@ -85,11 +92,15 @@ const defaultSettings = Object.freeze({
     i2vWorkflow: '',
     frames: 16,
     fps: 8,
+    motionIntensity: 'normal',
     motionPromptTemplate: DEFAULT_MOTION_PROMPT_TEMPLATE,
     confirmMotionPrompt: true,
     seedMode: 'random',
     fixedSeed: 0,
     negativePrompt: 'blurry, static, low quality, text, watermark',
+    imageStylePreset: 'photo',
+    customImageStyle: '',
+    installedBundledWorkflowVersions: {},
 
     attachImageMode: 'last',
     attachVideoMode: 'same',
@@ -130,6 +141,13 @@ function getSettings() {
         st.resolution = (w >= h) ? 'landscape' : 'portrait';
     }
     if (st.promptMode === 'manual') st.promptMode = 'profile';
+    if (st.imageStylePreset === 'realistic') st.imageStylePreset = 'photo';
+    if (!['photo', 'digital_art', 'western_comic', 'custom'].includes(st.imageStylePreset)) {
+        st.imageStylePreset = defaultSettings.imageStylePreset;
+    }
+    if (!['subtle', 'normal', 'energetic'].includes(st.motionIntensity)) {
+        st.motionIntensity = defaultSettings.motionIntensity;
+    }
     // Always LLM for motion — drop fixed mode
     delete st.motionPromptMode;
     delete st.fixedMotionPrompt;
@@ -145,9 +163,25 @@ function saveSettings() {
     saveSettingsDebounced();
 }
 
+async function addBundledWorkflows(restore = false) {
+    const settings = getSettings();
+    const bundled = await loadBundledWorkflows(EXT_NAME);
+    const added = seedBundledWorkflows(settings, bundled, restore);
+    if (added) saveSettings();
+    return added;
+}
+
 function resolveSeed(settings) {
     if (settings.seedMode === 'fixed') return Number(settings.fixedSeed) || 0;
     return Math.floor(Math.random() * 2 ** 32);
+}
+
+function appendVisualStyle(prompt, settings) {
+    const scene = String(prompt || '').trim();
+    const style = settings.imageStylePreset === 'custom'
+        ? String(settings.customImageStyle || '').trim()
+        : (IMAGE_STYLE_PROMPTS[settings.imageStylePreset] || '');
+    return style ? `${scene}\n\nVisual style: ${style}` : scene;
 }
 
 function populateProfileDropdown() {
@@ -263,11 +297,14 @@ function bindSettingsUi() {
         ['comfyvideo_image_prompt_template', 'imagePromptTemplate', 'value'],
         ['comfyvideo_frames', 'frames', 'number'],
         ['comfyvideo_fps', 'fps', 'number'],
+        ['comfyvideo_motion_intensity', 'motionIntensity', 'value'],
         ['comfyvideo_motion_prompt_template', 'motionPromptTemplate', 'value'],
         ['comfyvideo_confirm_motion', 'confirmMotionPrompt', 'checked'],
         ['comfyvideo_seed_mode', 'seedMode', 'value'],
         ['comfyvideo_fixed_seed', 'fixedSeed', 'number'],
         ['comfyvideo_negative', 'negativePrompt', 'value'],
+        ['comfyvideo_image_style', 'imageStylePreset', 'value'],
+        ['comfyvideo_custom_image_style', 'customImageStyle', 'value'],
         ['comfyvideo_attach_image', 'attachImageMode', 'value'],
         ['comfyvideo_attach_video', 'attachVideoMode', 'value'],
     ];
@@ -282,6 +319,10 @@ function bindSettingsUi() {
             else if (kind === 'number') st[key] = Number(/** @type {HTMLInputElement} */ (el).value);
             else st[key] = /** @type {HTMLInputElement} */ (el).value;
             if (key === 'frames' || key === 'fps') updateClipLengthHint();
+            if (key === 'imageStylePreset') {
+                document.getElementById('comfyvideo_custom_image_style_wrap')?.classList.toggle(
+                    'displayNone', st.imageStylePreset !== 'custom');
+            }
             saveSettings();
         });
     }
@@ -310,6 +351,18 @@ function bindSettingsUi() {
 
     document.getElementById('comfyvideo_import_libs')?.addEventListener('click', () => {
         document.getElementById('comfyvideo_import_file')?.click();
+    });
+    document.getElementById('comfyvideo_restore_bundled')?.addEventListener('click', async () => {
+        try {
+            const added = await addBundledWorkflows(true);
+            applySettingsToUi();
+            refreshLibraryDropdowns();
+            panel?.refresh();
+            toastr.info(added ? `${added} bundled workflow${added === 1 ? '' : 's'} added.` : 'All bundled workflows are already present.', 'ComfyVideo');
+        } catch (err) {
+            console.error(LOG, err);
+            toastr.error(String(err.message || err), 'ComfyVideo');
+        }
     });
     document.getElementById('comfyvideo_import_file')?.addEventListener('change', async e => {
         const file = /** @type {HTMLInputElement} */ (e.target).files?.[0];
@@ -410,6 +463,12 @@ function wireWorkflowLibrary(cfg) {
             placeholders: cfg.kind === 'i2v' ? I2V_PLACEHOLDERS : IMAGE_PLACEHOLDERS,
         });
         if (result == null) return;
+        try {
+            validateWorkflow(parseWorkflow(result), cfg.kind);
+        } catch (err) {
+            toastr.error(String(err.message || err), 'ComfyVideo');
+            return;
+        }
         st[cfg.fieldKey] = result;
         if (item) {
             item.json = result;
@@ -439,6 +498,12 @@ function wireWorkflowLibrary(cfg) {
                 placeholders: cfg.kind === 'i2v' ? I2V_PLACEHOLDERS : IMAGE_PLACEHOLDERS,
             });
             if (edited == null) return;
+            try {
+                validateWorkflow(parseWorkflow(edited), cfg.kind);
+            } catch (err) {
+                toastr.error(String(err.message || err), 'ComfyVideo');
+                return;
+            }
             json = edited;
             st[cfg.fieldKey] = json;
         }
@@ -619,11 +684,16 @@ function applySettingsToUi() {
     set('comfyvideo_image_prompt_template', st.imagePromptTemplate);
     set('comfyvideo_frames', st.frames);
     set('comfyvideo_fps', st.fps);
+    set('comfyvideo_motion_intensity', st.motionIntensity);
     set('comfyvideo_motion_prompt_template', st.motionPromptTemplate);
     set('comfyvideo_confirm_motion', st.confirmMotionPrompt, 'checked');
     set('comfyvideo_seed_mode', st.seedMode);
     set('comfyvideo_fixed_seed', st.fixedSeed);
     set('comfyvideo_negative', st.negativePrompt);
+    set('comfyvideo_image_style', st.imageStylePreset);
+    set('comfyvideo_custom_image_style', st.customImageStyle);
+    document.getElementById('comfyvideo_custom_image_style_wrap')?.classList.toggle(
+        'displayNone', st.imageStylePreset !== 'custom');
     set('comfyvideo_attach_image', st.attachImageMode);
     set('comfyvideo_attach_video', st.attachVideoMode);
 }
@@ -732,6 +802,7 @@ async function generateSceneImage() {
         });
 
         let imagePrompt = await prompts.buildImagePrompt(st, status.signal);
+        imagePrompt = appendVisualStyle(imagePrompt, st);
         if (status.aborted) throw new DOMException('Aborted', 'AbortError');
 
         if (st.confirmImagePrompt) {
@@ -857,6 +928,7 @@ async function generateVideoForMessage(messageId) {
             sourceImagePrompt,
             signal: status.signal,
         });
+        motionPrompt = appendVisualStyle(motionPrompt, st);
         if (status.aborted) throw new DOMException('Aborted', 'AbortError');
 
         if (st.confirmMotionPrompt) {
@@ -1010,6 +1082,11 @@ function setupMessageHooks() {
 jQuery(async () => {
     console.info(LOG, 'Loading…');
     getSettings();
+    try {
+        await addBundledWorkflows();
+    } catch (err) {
+        console.warn(LOG, 'Bundled workflows were not loaded', err);
+    }
     comfy = createComfyClient(getRequestHeaders);
     prompts = createPromptBuilder({
         getContext,

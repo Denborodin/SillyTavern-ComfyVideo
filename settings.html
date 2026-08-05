@@ -36,6 +36,21 @@
         </div>
 
         <div class="comfyvideo-section">
+            <div class="comfyvideo-section-title">Image style</div>
+            <label for="comfyvideo_image_style">Style</label>
+            <select id="comfyvideo_image_style" class="text_pole">
+                <option value="photo">Photo</option>
+                <option value="digital_art">Realistic digital art</option>
+                <option value="western_comic">Western detailed comic</option>
+                <option value="custom">Custom</option>
+            </select>
+            <div id="comfyvideo_custom_image_style_wrap" class="displayNone">
+                <label for="comfyvideo_custom_image_style">Custom style</label>
+                <textarea id="comfyvideo_custom_image_style" class="text_pole" rows="3" placeholder="Optional style guidance added to the image prompt"></textarea>
+            </div>
+        </div>
+
+        <div class="comfyvideo-section">
             <div class="comfyvideo-section-title">LLM</div>
             <label for="comfyvideo_prompt_mode">Mode</label>
             <select id="comfyvideo_prompt_mode" class="text_pole">
@@ -124,6 +139,12 @@
                 <input type="number" id="comfyvideo_fps" class="text_pole comfyvideo-num" min="1" max="60" />
                 <span id="comfyvideo_clip_length_hint" class="comfyvideo-hint" style="margin:0"></span>
             </div>
+            <label for="comfyvideo_motion_intensity">Motion intensity</label>
+            <select id="comfyvideo_motion_intensity" class="text_pole">
+                <option value="subtle">Subtle</option>
+                <option value="normal">Normal</option>
+                <option value="energetic">Energetic</option>
+            </select>
             <label class="checkbox_label" for="comfyvideo_confirm_motion">
                 <input type="checkbox" id="comfyvideo_confirm_motion" />
                 <span>Preview / edit motion prompt before I2V</span>
@@ -161,6 +182,7 @@
             <div class="comfyvideo-section-title">Library backup</div>
             <div class="comfyvideo-row">
                 <div id="comfyvideo_export_libs" class="menu_button">Export libraries</div>
+                <div id="comfyvideo_restore_bundled" class="menu_button">Add missing bundled workflows</div>
                 <div id="comfyvideo_import_libs" class="menu_button">Import libraries…</div>
                 <input type="file" id="comfyvideo_import_file" accept="application/json,.json" class="displayNone" />
             </div>

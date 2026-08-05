@@ -92,6 +92,7 @@ const defaultSettings = Object.freeze({
     i2vWorkflow: '',
     frames: 16,
     fps: 8,
+    motionIntensity: 'normal',
     motionPromptTemplate: DEFAULT_MOTION_PROMPT_TEMPLATE,
     confirmMotionPrompt: true,
     seedMode: 'random',
@@ -143,6 +144,9 @@ function getSettings() {
     if (st.imageStylePreset === 'realistic') st.imageStylePreset = 'photo';
     if (!['photo', 'digital_art', 'western_comic', 'custom'].includes(st.imageStylePreset)) {
         st.imageStylePreset = defaultSettings.imageStylePreset;
+    }
+    if (!['subtle', 'normal', 'energetic'].includes(st.motionIntensity)) {
+        st.motionIntensity = defaultSettings.motionIntensity;
     }
     // Always LLM for motion — drop fixed mode
     delete st.motionPromptMode;
@@ -293,6 +297,7 @@ function bindSettingsUi() {
         ['comfyvideo_image_prompt_template', 'imagePromptTemplate', 'value'],
         ['comfyvideo_frames', 'frames', 'number'],
         ['comfyvideo_fps', 'fps', 'number'],
+        ['comfyvideo_motion_intensity', 'motionIntensity', 'value'],
         ['comfyvideo_motion_prompt_template', 'motionPromptTemplate', 'value'],
         ['comfyvideo_confirm_motion', 'confirmMotionPrompt', 'checked'],
         ['comfyvideo_seed_mode', 'seedMode', 'value'],
@@ -679,6 +684,7 @@ function applySettingsToUi() {
     set('comfyvideo_image_prompt_template', st.imagePromptTemplate);
     set('comfyvideo_frames', st.frames);
     set('comfyvideo_fps', st.fps);
+    set('comfyvideo_motion_intensity', st.motionIntensity);
     set('comfyvideo_motion_prompt_template', st.motionPromptTemplate);
     set('comfyvideo_confirm_motion', st.confirmMotionPrompt, 'checked');
     set('comfyvideo_seed_mode', st.seedMode);

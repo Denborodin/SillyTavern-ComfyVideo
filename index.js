@@ -839,7 +839,7 @@ async function generateSceneImage() {
         const charName = ctx.name2 || 'ComfyVideo';
         const path = await saveBase64AsFile(result.data, charName, `ComfyVideo_${humanizedDateTime()}`, result.format);
 
-        const attached = await attachGeneratedMedia({
+        await attachGeneratedMedia({
             context: ctx,
             url: path,
             format: result.format,
@@ -861,7 +861,6 @@ async function generateSceneImage() {
 
         toastr.success('Scene image attached.', 'ComfyVideo');
         injectI2vButtons();
-        return attached.messageId;
     } catch (e) {
         if (isAbortError(e)) toastr.info('Stopped.', 'ComfyVideo');
         else {
@@ -872,12 +871,6 @@ async function generateSceneImage() {
         status?.close();
         busy = false;
     }
-}
-
-async function generateSceneVideo() {
-    const messageId = await generateSceneImage();
-    if (messageId == null) return;
-    await generateVideoForMessage(messageId);
 }
 
 /**
@@ -1100,7 +1093,6 @@ jQuery(async () => {
             updateClipLengthHint();
         },
         generateSceneImage,
-        generateSceneVideo,
         generateVideoForMessage,
         getContext,
         isComfyVideoMessage,

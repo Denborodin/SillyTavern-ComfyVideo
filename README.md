@@ -37,10 +37,6 @@ Wand menu → **ComfyVideo** (or `/comfyvideo`) opens a floating panel (Pathweav
 
 Per-message film button still works for I2V on a specific message.
 
-**Generate scene video** runs the existing scene-image flow followed by H3 for
-the exact still it just attached. Image and motion prompt previews still appear
-when enabled in settings.
-
 ## Setup
 
 1. ComfyUI + CORS for upload/WS  

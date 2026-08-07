@@ -16,10 +16,13 @@ Completed recently:
   prompt generation.
 - Bundled workflow seeding, safe restore, and editable user copies.
 - Last-still thumbnail preview for the separate Generate video action.
-- Selectable video source picker with I2V dimensions locked to the selected
-  still's saved metadata.
+- Selectable video source picker, preserving the selected still's orientation
+  while H3 stays at its supported output dimensions.
 - Quick video-duration presets: 5s / 120 frames, 8s / 192 frames, and
   10s / 240 frames, all at 24 FPS.
+- Z-Image still-quality selector: video-safe 1×, High 1.5×, and Ultra 2×.
+  The bundled H3 v2 workflow resizes the selected still with ComfyUI before
+  conditioning, retaining the original high-resolution still in chat.
 
 The combined Scene to Image to Video button was deliberately removed. The
 day-to-day flow remains separate Generate scene image and Generate video

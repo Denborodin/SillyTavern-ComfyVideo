@@ -27,12 +27,19 @@
         </div>
 
         <div class="comfyvideo-section">
-            <div class="comfyvideo-section-title">Resolution (image + video)</div>
-            <label for="comfyvideo_resolution">Size</label>
+            <div class="comfyvideo-section-title">Resolution</div>
+            <label for="comfyvideo_resolution">Video size / orientation</label>
             <select id="comfyvideo_resolution" class="text_pole">
                 <option value="portrait">768 × 1344 (portrait)</option>
                 <option value="landscape">1344 × 768 (landscape)</option>
             </select>
+            <label for="comfyvideo_image_quality">Z-Image still quality</label>
+            <select id="comfyvideo_image_quality" class="text_pole">
+                <option value="compatible">Video-safe (1×)</option>
+                <option value="high">High (1.5×, recommended)</option>
+                <option value="ultra">Ultra (2×, high VRAM use)</option>
+            </select>
+            <p class="comfyvideo-hint">H3 always renders at the video size above. Its workflow resizes the selected still before conditioning.</p>
         </div>
 
         <div class="comfyvideo-section">

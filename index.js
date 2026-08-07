@@ -28,6 +28,7 @@ import {
     validateWorkflow,
     wrapPromptBody,
     resolveDimensions,
+    resolveImageDimensions,
 } from './lib/workflow.js';
 import { createPromptBuilder } from './lib/prompt-builder.js';
 import {
@@ -77,6 +78,7 @@ const defaultSettings = Object.freeze({
     enabled: true,
     comfyUrl: 'http://127.0.0.1:8188',
     resolution: 'portrait',
+    imageQuality: 'high',
 
     imageWorkflow: '',
     contextMessages: 5,
@@ -148,6 +150,9 @@ function getSettings() {
     if (!['subtle', 'normal', 'energetic'].includes(st.motionIntensity)) {
         st.motionIntensity = defaultSettings.motionIntensity;
     }
+    if (!['compatible', 'high', 'ultra'].includes(st.imageQuality)) {
+        st.imageQuality = defaultSettings.imageQuality;
+    }
     // Always LLM for motion — drop fixed mode
     delete st.motionPromptMode;
     delete st.fixedMotionPrompt;
@@ -180,7 +185,7 @@ function resolveVideoDimensions(settings, message) {
     const width = Number(message?.extra?.comfyVideo?.width);
     const height = Number(message?.extra?.comfyVideo?.height);
     if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
-        return { width, height };
+        return resolveDimensions(width >= height ? 'landscape' : 'portrait');
     }
     return resolveDimensions(settings.resolution);
 }
@@ -296,6 +301,7 @@ function bindSettingsUi() {
         ['comfyvideo_enabled', 'enabled', 'checked'],
         ['comfyvideo_comfy_url', 'comfyUrl', 'value'],
         ['comfyvideo_resolution', 'resolution', 'value'],
+        ['comfyvideo_image_quality', 'imageQuality', 'value'],
         ['comfyvideo_prompt_mode', 'promptMode', 'value'],
         ['comfyvideo_llm_profile', 'llmProfileId', 'value'],
         ['comfyvideo_max_prompt_tokens', 'maxPromptTokens', 'number'],
@@ -683,6 +689,7 @@ function applySettingsToUi() {
     set('comfyvideo_enabled', st.enabled, 'checked');
     set('comfyvideo_comfy_url', st.comfyUrl);
     set('comfyvideo_resolution', st.resolution === 'landscape' ? 'landscape' : 'portrait');
+    set('comfyvideo_image_quality', st.imageQuality);
     set('comfyvideo_prompt_mode', st.promptMode);
     set('comfyvideo_llm_profile', st.llmProfileId);
     set('comfyvideo_max_prompt_tokens', st.maxPromptTokens);
@@ -799,7 +806,7 @@ async function generateSceneImage() {
     }
 
     busy = true;
-    const dims = resolveDimensions(st.resolution);
+    const dims = resolveImageDimensions(st.resolution, st.imageQuality);
     /** @type {ReturnType<typeof showStatus>|null} */
     let status = null;
 

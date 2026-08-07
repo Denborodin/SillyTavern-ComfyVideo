@@ -51,10 +51,11 @@ Per-message film button still works for I2V on a specific message.
 
 **I2V:** `"%image%"`, `"%prompt%"`, `"%frames%"`, `"%fps%"`, …  
 
-**Video resolution:** 768×1344 or 1344×768. The bundled H3 v2 workflow
-resizes the uploaded source still with ComfyUI's built-in Lanczos `ImageScale`
-node before conditioning, so future high-resolution scene-image presets remain
-compatible with H3 while the original still is retained in chat.
+**Video resolution:** 768×1344 or 1344×768. Z-Image still quality is selectable:
+video-safe 1×, High 1.5× (1152×2016 / 2016×1152), or Ultra 2×
+(1536×2688 / 2688×1536). The bundled H3 v2 workflow resizes the uploaded source
+still with ComfyUI's built-in Lanczos `ImageScale` node before conditioning, so
+the original high-resolution still remains in chat while H3 receives a safe size.
 
 Photo, realistic digital-art, and Western detailed-comic styles are appended
 to both final image and motion prompts, and shown in their previews. Instruction

@@ -18,7 +18,7 @@ import { saveBase64AsFile } from '../../../utils.js';
 import { getMessageTimeStamp, humanizedDateTime } from '../../../RossAscends-mods.js';
 import { SlashCommandParser } from '../../../slash-commands/SlashCommandParser.js';
 import { SlashCommand } from '../../../slash-commands/SlashCommand.js';
-import { callGenericPopup, Popup, POPUP_TYPE } from '../../../popup.js';
+import { callGenericPopup, Popup, POPUP_RESULT, POPUP_TYPE } from '../../../popup.js';
 import { ConnectionManagerRequestService } from '../../shared.js';
 
 import { createComfyClient } from './lib/comfy-client.js';
@@ -780,12 +780,41 @@ function registerSlashCommands() {
 }
 
 async function previewPrompt(title, initial, okLabel) {
-    const edited = await callGenericPopup(
-        title,
-        POPUP_TYPE.INPUT,
-        initial,
-        { okButton: okLabel, cancelButton: 'Cancel', rows: 10, wide: true },
-    );
+    const autoSubmitSeconds = 10;
+    let timer = null;
+    let secondsLeft = autoSubmitSeconds;
+    let editedByUser = false;
+    const label = () => editedByUser ? okLabel : `${okLabel} (${secondsLeft}s)`;
+    const stopTimer = () => {
+        if (timer !== null) clearInterval(timer);
+        timer = null;
+    };
+
+    const popup = new Popup(title, POPUP_TYPE.INPUT, initial, {
+        okButton: label(),
+        cancelButton: 'Cancel',
+        rows: 10,
+        wide: true,
+        onOpen: current => {
+            const stopOnEdit = () => {
+                editedByUser = true;
+                stopTimer();
+                current.okButton.textContent = okLabel;
+            };
+            current.mainInput.addEventListener('input', stopOnEdit, { once: true });
+            timer = setInterval(() => {
+                secondsLeft--;
+                if (secondsLeft <= 0) {
+                    stopTimer();
+                    void current.complete(POPUP_RESULT.AFFIRMATIVE);
+                    return;
+                }
+                current.okButton.textContent = label();
+            }, 1000);
+        },
+        onClose: stopTimer,
+    });
+    const edited = await popup.show();
     if (edited === false || edited === null || edited === undefined) return null;
     return String(edited).trim();
 }

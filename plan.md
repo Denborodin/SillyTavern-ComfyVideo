@@ -14,6 +14,8 @@ Completed recently:
 - Structured timestamped H3 motion-prompt preset.
 - Immediate extension-side cancellation for quiet and connection-profile LLM
   prompt generation.
+- Image and motion prompt previews auto-submit unchanged after 10 seconds and
+  remain open after an edit.
 - Bundled workflow seeding, safe restore, and editable user copies.
 - Last-still thumbnail preview for the separate Generate video action.
 - Selectable video source picker, preserving the selected still's orientation

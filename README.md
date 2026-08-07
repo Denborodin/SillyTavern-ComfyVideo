@@ -22,7 +22,9 @@ Tuned for **natural language**:
 - **Z-Image (photo/still)** — roleplay focus: appearance, clothing, positions, actions (not VN-style tag dumps).
 - **MiniMax H3 (video)** — I2V motion only; clip length from **frames ÷ fps** (≈ one line per 1–2 seconds).
 
-Motion prompts **always** use the LLM (no fixed-only mode). Optional preview before generate.
+Motion prompts **always** use the LLM (no fixed-only mode). Prompt previews
+auto-submit after 10 seconds unless you edit the prompt; then they remain open
+until you Generate or Cancel.
 
 ## Generation panel
 

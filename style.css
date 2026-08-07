@@ -188,7 +188,7 @@
     position: fixed;
     right: 1.25rem;
     bottom: 1.25rem;
-    z-index: 10000;
+    z-index: 10060;
     min-width: 280px;
     max-width: min(420px, 92vw);
     padding: 0.85rem 1rem;
@@ -198,6 +198,8 @@
     box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
     color: var(--SmartThemeBodyColor, #eee);
     font-size: 0.95em;
+    box-sizing: border-box;
+    overflow-x: hidden;
 }
 
 .comfyvideo-status-panel__header {
@@ -206,10 +208,13 @@
     justify-content: space-between;
     gap: 0.75em;
     margin-bottom: 0.45em;
+    min-width: 0;
 }
 
 .comfyvideo-status-panel__title {
     font-size: 1em;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .comfyvideo-status-panel__stop {
@@ -658,12 +663,35 @@
     }
 
     .comfyvideo-status-panel {
-        right: 8px;
-        bottom: 8px;
-        min-width: 0;
-        width: calc(100vw - 16px);
-        max-width: none;
-        box-sizing: border-box;
+        position: fixed !important;
+        top: 8px !important;
+        top: max(8px, env(safe-area-inset-top)) !important;
+        right: auto !important;
+        bottom: auto !important;
+        left: 50% !important;
+        width: 95vw !important;
+        min-width: 0 !important;
+        max-width: 95vw !important;
+        max-height: calc(100vh - 16px);
+        overflow-y: auto;
+        transform: translateX(-50%);
+        margin: 0 !important;
+        padding: 12px 14px;
+        border-radius: 10px;
+    }
+
+    @supports (height: 100dvh) {
+        .comfyvideo-status-panel {
+            max-height: calc(100dvh - 16px);
+        }
+    }
+
+    .comfyvideo-status-panel__stop {
+        min-width: 5.5em;
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
     }
 
     #comfyvideo_settings .comfyvideo-lib-row > .menu_button,

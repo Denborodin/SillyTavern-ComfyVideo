@@ -13,11 +13,11 @@
     },
     {
       "id": "builtin.video.minimax-h3-i2v",
-      "version": 1,
-      "name": "MiniMax H3 I2V",
+      "version": 2,
+      "name": "MiniMax H3 I2V v2",
       "kind": "i2v",
       "file": "video/minimax-h3-i2v.json",
-      "description": "MiniMax H3 image-to-video workflow extracted from the tested local ComfyVideo setup.",
+      "description": "MiniMax H3 image-to-video workflow that resizes the uploaded source still to the requested H3 dimensions before conditioning.",
       "requiredPlaceholders": ["%image%", "%prompt%", "%seed%", "%frames%", "%fps%", "%width%", "%height%"],
       "optionalPlaceholders": ["%negative_prompt%"]
     }

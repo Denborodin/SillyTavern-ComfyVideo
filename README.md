@@ -29,10 +29,10 @@ Motion prompts **always** use the LLM (no fixed-only mode). Optional preview bef
 Wand menu → **ComfyVideo** (or `/comfyvideo`) opens a floating panel (Pathweaver-style):
 
 - Portrait / landscape  
-- Video length presets (2s–6s) + frames/FPS  
+- Video length presets: 5s / 8s / 10s at 24 FPS (120 / 192 / 240 frames)
 - Pick image & I2V workflows and LLM instruction presets  
 - Choose Realistic, Western comic, or a saved custom image style
-- **Generate scene image** / **Generate video** (latest ComfyVideo still)  
+- **Generate scene image** / **Generate video** (selectable ComfyVideo still)
 - Link to full extension settings  
 
 Per-message film button still works for I2V on a specific message.
@@ -51,7 +51,10 @@ Per-message film button still works for I2V on a specific message.
 
 **I2V:** `"%image%"`, `"%prompt%"`, `"%frames%"`, `"%fps%"`, …  
 
-**Resolution:** 768×1344 or 1344×768 (shared).
+**Video resolution:** 768×1344 or 1344×768. The bundled H3 v2 workflow
+resizes the uploaded source still with ComfyUI's built-in Lanczos `ImageScale`
+node before conditioning, so future high-resolution scene-image presets remain
+compatible with H3 while the original still is retained in chat.
 
 Photo, realistic digital-art, and Western detailed-comic styles are appended
 to both final image and motion prompts, and shown in their previews. Instruction
@@ -66,9 +69,10 @@ workflows** in Library backup to explicitly restore a deleted copy.
 - **Z-Image Turbo** uses `z_image_turbo_bf16.safetensors`, `ae.safetensors`,
   and `qwen_3_4b.safetensors`. It accepts prompt, negative prompt, seed, width,
   and height placeholders.
-- **MiniMax H3 I2V** uses the MiniMax H3 UNet, Qwen3-VL clip, video/audio VAEs,
-  and the built-in `MiniMaxH3ImageToVideo` plus video nodes. It accepts image,
-  prompt, seed, frames, FPS, width, and height placeholders.
+- **MiniMax H3 I2V v2** uses the MiniMax H3 UNet, Qwen3-VL clip, video/audio
+  VAEs, built-in `ImageScale`, `MiniMaxH3ImageToVideo`, and video nodes. It
+  resizes its source image to the H3 dimensions before generation and accepts
+  image, prompt, seed, frames, FPS, width, and height placeholders.
 
 You can edit, duplicate, delete, or replace either workflow in the normal
 library. The committed assets include only the workflows supplied by the local

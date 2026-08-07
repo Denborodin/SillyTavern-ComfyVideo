@@ -302,7 +302,6 @@
     overflow: hidden;
     color: var(--SmartThemeBodyColor, #eee);
     box-sizing: border-box;
-    min-height: 0;
 }
 
 @supports (height: 100dvh) {
@@ -590,21 +589,31 @@
     color: var(--SmartThemeQuoteColor, #8b5cf6);
 }
 
-@media (max-width: 480px) {
+@media (max-width: 768px) {
     .cv_modal_overlay {
         align-items: flex-start;
-        padding: 8px;
-        overflow-y: auto;
+        justify-content: center;
+        width: 100vw !important;
+        height: 100vh !important;
+        padding: 0 !important;
+        overflow-y: auto !important;
     }
 
     .cv_modal {
-        max-width: 100%;
-        max-height: calc(100vh - 16px);
+        display: flex !important;
+        flex-direction: column;
+        position: relative !important;
+        width: 95vw !important;
+        max-width: 95vw !important;
+        height: auto !important;
+        max-height: 90vh !important;
+        margin: 0 auto 20px !important;
+        transform: none !important;
     }
 
     @supports (height: 100dvh) {
         .cv_modal {
-            max-height: calc(100dvh - 16px);
+            max-height: 90dvh !important;
         }
     }
 
@@ -612,6 +621,17 @@
     .cv_modal_body {
         padding-left: 12px;
         padding-right: 12px;
+    }
+
+    .cv_modal_header {
+        flex: 0 0 auto;
+    }
+
+    .cv_modal_body {
+        flex: 1 1 auto;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding-bottom: 40px;
     }
 
     .cv_modal_close {

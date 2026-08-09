@@ -18,7 +18,7 @@ import { saveBase64AsFile } from '../../../utils.js';
 import { getMessageTimeStamp, humanizedDateTime } from '../../../RossAscends-mods.js';
 import { SlashCommandParser } from '../../../slash-commands/SlashCommandParser.js';
 import { SlashCommand } from '../../../slash-commands/SlashCommand.js';
-import { callGenericPopup, Popup, POPUP_TYPE } from '../../../popup.js';
+import { callGenericPopup, Popup, POPUP_RESULT, POPUP_TYPE } from '../../../popup.js';
 import { ConnectionManagerRequestService } from '../../shared.js';
 
 import { createComfyClient } from './lib/comfy-client.js';
@@ -28,6 +28,7 @@ import {
     validateWorkflow,
     wrapPromptBody,
     resolveDimensions,
+    resolveImageDimensions,
 } from './lib/workflow.js';
 import { createPromptBuilder } from './lib/prompt-builder.js';
 import {
@@ -49,6 +50,7 @@ import {
     overwriteItem,
     addItem,
     removeItem,
+    resolveImagePromptVariant,
     exportLibrariesBlob,
     importLibraries,
 } from './lib/library.js';
@@ -77,6 +79,7 @@ const defaultSettings = Object.freeze({
     enabled: true,
     comfyUrl: 'http://127.0.0.1:8188',
     resolution: 'portrait',
+    imageQuality: 'high',
 
     imageWorkflow: '',
     contextMessages: 5,
@@ -148,6 +151,9 @@ function getSettings() {
     if (!['subtle', 'normal', 'energetic'].includes(st.motionIntensity)) {
         st.motionIntensity = defaultSettings.motionIntensity;
     }
+    if (!['compatible', 'high', 'ultra'].includes(st.imageQuality)) {
+        st.imageQuality = defaultSettings.imageQuality;
+    }
     // Always LLM for motion — drop fixed mode
     delete st.motionPromptMode;
     delete st.fixedMotionPrompt;
@@ -180,7 +186,7 @@ function resolveVideoDimensions(settings, message) {
     const width = Number(message?.extra?.comfyVideo?.width);
     const height = Number(message?.extra?.comfyVideo?.height);
     if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
-        return { width, height };
+        return resolveDimensions(width >= height ? 'landscape' : 'portrait');
     }
     return resolveDimensions(settings.resolution);
 }
@@ -296,6 +302,7 @@ function bindSettingsUi() {
         ['comfyvideo_enabled', 'enabled', 'checked'],
         ['comfyvideo_comfy_url', 'comfyUrl', 'value'],
         ['comfyvideo_resolution', 'resolution', 'value'],
+        ['comfyvideo_image_quality', 'imageQuality', 'value'],
         ['comfyvideo_prompt_mode', 'promptMode', 'value'],
         ['comfyvideo_llm_profile', 'llmProfileId', 'value'],
         ['comfyvideo_max_prompt_tokens', 'maxPromptTokens', 'number'],
@@ -683,6 +690,7 @@ function applySettingsToUi() {
     set('comfyvideo_enabled', st.enabled, 'checked');
     set('comfyvideo_comfy_url', st.comfyUrl);
     set('comfyvideo_resolution', st.resolution === 'landscape' ? 'landscape' : 'portrait');
+    set('comfyvideo_image_quality', st.imageQuality);
     set('comfyvideo_prompt_mode', st.promptMode);
     set('comfyvideo_llm_profile', st.llmProfileId);
     set('comfyvideo_max_prompt_tokens', st.maxPromptTokens);
@@ -773,17 +781,46 @@ function registerSlashCommands() {
 }
 
 async function previewPrompt(title, initial, okLabel) {
-    const edited = await callGenericPopup(
-        title,
-        POPUP_TYPE.INPUT,
-        initial,
-        { okButton: okLabel, cancelButton: 'Cancel', rows: 10, wide: true },
-    );
+    const autoSubmitSeconds = 10;
+    let timer = null;
+    let secondsLeft = autoSubmitSeconds;
+    let editedByUser = false;
+    const label = () => editedByUser ? okLabel : `${okLabel} (${secondsLeft}s)`;
+    const stopTimer = () => {
+        if (timer !== null) clearInterval(timer);
+        timer = null;
+    };
+
+    const popup = new Popup(title, POPUP_TYPE.INPUT, initial, {
+        okButton: label(),
+        cancelButton: 'Cancel',
+        rows: 10,
+        wide: true,
+        onOpen: current => {
+            const stopOnEdit = () => {
+                editedByUser = true;
+                stopTimer();
+                current.okButton.textContent = okLabel;
+            };
+            current.mainInput.addEventListener('input', stopOnEdit, { once: true });
+            timer = setInterval(() => {
+                secondsLeft--;
+                if (secondsLeft <= 0) {
+                    stopTimer();
+                    void current.complete(POPUP_RESULT.AFFIRMATIVE);
+                    return;
+                }
+                current.okButton.textContent = label();
+            }, 1000);
+        },
+        onClose: stopTimer,
+    });
+    const edited = await popup.show();
     if (edited === false || edited === null || edited === undefined) return null;
     return String(edited).trim();
 }
 
-async function generateSceneImage() {
+async function generateSceneImage(promptKind = 'scene') {
     const st = getSettings();
     if (!st.enabled) {
         toastr.warning('ComfyVideo is disabled in settings.');
@@ -798,15 +835,22 @@ async function generateSceneImage() {
         return;
     }
 
+    const promptVariant = resolveImagePromptVariant(st, promptKind);
+    st.activeImagePromptId = promptVariant.id || st.activeImagePromptId;
+    st.imagePromptTemplate = promptVariant.template;
+    saveSettings();
+    applySettingsToUi();
+    refreshLibraryDropdowns();
+
     busy = true;
-    const dims = resolveDimensions(st.resolution);
+    const dims = resolveImageDimensions(st.resolution, st.imageQuality);
     /** @type {ReturnType<typeof showStatus>|null} */
     let status = null;
 
     try {
         status = showStatus({
             title: 'ComfyVideo',
-            message: 'Building image prompt…',
+            message: `Building ${promptVariant.label.toLowerCase()} prompt…`,
             onStop: () => comfy.interrupt(st.comfyUrl),
         });
 
@@ -817,7 +861,7 @@ async function generateSceneImage() {
         if (st.confirmImagePrompt) {
             status.close();
             status = null;
-            const edited = await previewPrompt('Edit image prompt, then generate', imagePrompt, 'Generate');
+            const edited = await previewPrompt(`Edit ${promptVariant.label.toLowerCase()} prompt, then generate`, imagePrompt, 'Generate');
             if (edited === null) return;
             if (!edited) {
                 toastr.warning('Empty prompt cancelled.');
@@ -863,6 +907,9 @@ async function generateSceneImage() {
             prompt: imagePrompt,
             meta: {
                 imagePrompt,
+                imagePromptKind: promptVariant.kind,
+                imagePromptPresetId: promptVariant.id,
+                imagePromptPresetName: promptVariant.name,
                 seed,
                 step: 'image',
                 width: dims.width,
@@ -876,7 +923,7 @@ async function generateSceneImage() {
             systemUserName,
         });
 
-        toastr.success('Scene image attached.', 'ComfyVideo');
+        toastr.success(`${promptVariant.label} image attached.`, 'ComfyVideo');
         injectI2vButtons();
     } catch (e) {
         if (isAbortError(e)) toastr.info('Stopped.', 'ComfyVideo');

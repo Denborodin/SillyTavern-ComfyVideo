@@ -12,12 +12,22 @@
       "optionalPlaceholders": ["%negative_prompt%"]
     },
     {
-      "id": "builtin.video.minimax-h3-i2v",
+      "id": "builtin.image.flux-2-klein-9b",
       "version": 1,
-      "name": "MiniMax H3 I2V",
+      "name": "FLUX.2 Klein 9B",
+      "kind": "image",
+      "file": "image/flux-2-klein-9b.json",
+      "description": "Official-parameter FLUX.2 Klein 9B distilled text-to-image workflow using the locally installed FP8 model.",
+      "requiredPlaceholders": ["%prompt%", "%seed%", "%width%", "%height%"],
+      "optionalPlaceholders": []
+    },
+    {
+      "id": "builtin.video.minimax-h3-i2v",
+      "version": 2,
+      "name": "MiniMax H3 I2V v2",
       "kind": "i2v",
       "file": "video/minimax-h3-i2v.json",
-      "description": "MiniMax H3 image-to-video workflow extracted from the tested local ComfyVideo setup.",
+      "description": "MiniMax H3 image-to-video workflow that resizes the uploaded source still to the requested H3 dimensions before conditioning.",
       "requiredPlaceholders": ["%image%", "%prompt%", "%seed%", "%frames%", "%fps%", "%width%", "%height%"],
       "optionalPlaceholders": ["%negative_prompt%"]
     }

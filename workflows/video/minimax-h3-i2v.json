@@ -5,6 +5,22 @@
       "image": "%image%"
     }
   },
+  "105": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": [
+        "1",
+        0
+      ],
+      "upscale_method": "lanczos",
+      "width": "%width%",
+      "height": "%height%",
+      "crop": "center"
+    },
+    "_meta": {
+      "title": "Resize source still for H3"
+    }
+  },
   "6": {
     "class_type": "UNETLoader",
     "inputs": {
@@ -163,7 +179,7 @@
       "height": "%height%",
       "length": "%frames%",
       "first_frame": [
-        "1",
+        "105",
         0
       ]
     }

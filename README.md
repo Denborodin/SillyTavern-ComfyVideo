@@ -19,20 +19,25 @@ Export / Import JSON under **Library backup**.
 
 Tuned for **natural language**:
 
-- **Z-Image (photo/still)** — roleplay focus: appearance, clothing, positions, actions (not VN-style tag dumps).
+- **Image composition presets (Z-Image / FLUX.2 Klein)** — Whole scene,
+  single-character Portrait, precise two-person Interaction, and wide
+  Environment prompts. Each remains editable in the prompt library.
 - **MiniMax H3 (video)** — I2V motion only; clip length from **frames ÷ fps** (≈ one line per 1–2 seconds).
 
-Motion prompts **always** use the LLM (no fixed-only mode). Optional preview before generate.
+Motion prompts **always** use the LLM (no fixed-only mode). Prompt previews
+auto-submit after 10 seconds unless you edit the prompt; then they remain open
+until you Generate or Cancel.
 
 ## Generation panel
 
 Wand menu → **ComfyVideo** (or `/comfyvideo`) opens a floating panel (Pathweaver-style):
 
 - Portrait / landscape  
-- Video length presets (2s–6s) + frames/FPS  
-- Pick image & I2V workflows and LLM instruction presets  
+- Video length presets: 5s / 8s / 10s at 24 FPS (120 / 192 / 240 frames)
+- Pick image and I2V workflows; edit all LLM instruction presets in Full settings
 - Choose Realistic, Western comic, or a saved custom image style
-- **Generate scene image** / **Generate video** (latest ComfyVideo still)  
+- **Whole scene**, **Portrait**, **Interaction**, or **Environment** image actions
+- **Generate video** from a selectable ComfyVideo still
 - Link to full extension settings  
 
 Per-message film button still works for I2V on a specific message.
@@ -51,7 +56,11 @@ Per-message film button still works for I2V on a specific message.
 
 **I2V:** `"%image%"`, `"%prompt%"`, `"%frames%"`, `"%fps%"`, …  
 
-**Resolution:** 768×1344 or 1344×768 (shared).
+**Video resolution:** 864×1152 (3:4) or 1152×864 (4:3). Z-Image still quality is
+selectable: video-safe 1×, High 1.5× (1296×1728 / 1728×1296), or Ultra 2×
+(1728×2304 / 2304×1728). The bundled H3 v2 workflow resizes the uploaded source
+still with ComfyUI's built-in Lanczos `ImageScale` node before conditioning, so
+the original high-resolution still remains in chat while H3 receives a safe size.
 
 Photo, realistic digital-art, and Western detailed-comic styles are appended
 to both final image and motion prompts, and shown in their previews. Instruction
@@ -66,11 +75,17 @@ workflows** in Library backup to explicitly restore a deleted copy.
 - **Z-Image Turbo** uses `z_image_turbo_bf16.safetensors`, `ae.safetensors`,
   and `qwen_3_4b.safetensors`. It accepts prompt, negative prompt, seed, width,
   and height placeholders.
-- **MiniMax H3 I2V** uses the MiniMax H3 UNet, Qwen3-VL clip, video/audio VAEs,
-  and the built-in `MiniMaxH3ImageToVideo` plus video nodes. It accepts image,
-  prompt, seed, frames, FPS, width, and height placeholders.
+- **FLUX.2 Klein 9B** uses the distilled `flux-2-klein-9b-fp8.safetensors`,
+  `qwen_3_8b_fp8mixed.safetensors`, and `full_encoder_small_decoder.safetensors`.
+  It follows the official four-step, CFG 1, Euler configuration and accepts
+  prompt, seed, width, and height placeholders. It uses only built-in ComfyUI
+  nodes and intentionally zeroes negative conditioning.
+- **MiniMax H3 I2V v2** uses the MiniMax H3 UNet, Qwen3-VL clip, video/audio
+  VAEs, built-in `ImageScale`, `MiniMaxH3ImageToVideo`, and video nodes. It
+  resizes its source image to the H3 dimensions before generation and accepts
+  image, prompt, seed, frames, FPS, width, and height placeholders.
 
-You can edit, duplicate, delete, or replace either workflow in the normal
+You can edit, duplicate, delete, or replace any workflow in the normal
 library. The committed assets include only the workflows supplied by the local
 tested setup; other models remain supported through user-imported API JSON.
 

@@ -12,15 +12,15 @@
             <div class="cv_panel_section">
                 <div class="cv_panel_label">Proportions</div>
                 <div class="cv_seg" id="comfyvideo_panel_resolution" role="group">
-                    <button type="button" class="cv_seg_btn" data-value="portrait" title="768 × 1344">
+                    <button type="button" class="cv_seg_btn" data-value="portrait" title="864 × 1152">
                         <i class="fa-solid fa-mobile-screen"></i>
                         <span>Portrait</span>
-                        <small>768×1344</small>
+                        <small>864×1152</small>
                     </button>
-                    <button type="button" class="cv_seg_btn" data-value="landscape" title="1344 × 768">
+                    <button type="button" class="cv_seg_btn" data-value="landscape" title="1152 × 864">
                         <i class="fa-solid fa-panorama"></i>
                         <span>Landscape</span>
-                        <small>1344×768</small>
+                        <small>1152×864</small>
                     </button>
                 </div>
                 <div class="cv_panel_label">Still quality</div>
@@ -69,10 +69,6 @@
                 <select id="comfyvideo_panel_image_wf" class="text_pole"></select>
             </div>
             <div class="cv_panel_section">
-                <div class="cv_panel_label">Image gen prompt (LLM instructions)</div>
-                <select id="comfyvideo_panel_image_prompt" class="text_pole"></select>
-            </div>
-            <div class="cv_panel_section">
                 <div class="cv_panel_label">I2V workflow</div>
                 <select id="comfyvideo_panel_i2v_wf" class="text_pole"></select>
             </div>
@@ -84,10 +80,29 @@
             </details>
 
             <div class="cv_panel_section cv_panel_actions">
-                <button type="button" class="cv_action_btn primary" id="comfyvideo_panel_gen_image">
-                    <i class="fa-solid fa-image"></i>
-                    Generate scene image
-                </button>
+                <div class="cv_panel_label">Generate image</div>
+                <div class="cv_image_action_grid" role="group" aria-label="Generate image composition">
+                    <button type="button" class="cv_action_btn cv_image_action_btn primary" data-prompt-kind="scene">
+                        <i class="fa-solid fa-users"></i>
+                        <span>Whole scene</span>
+                        <small>All characters</small>
+                    </button>
+                    <button type="button" class="cv_action_btn cv_image_action_btn primary" data-prompt-kind="portrait">
+                        <i class="fa-solid fa-user"></i>
+                        <span>Portrait</span>
+                        <small>Single character</small>
+                    </button>
+                    <button type="button" class="cv_action_btn cv_image_action_btn primary" data-prompt-kind="interaction">
+                        <i class="fa-solid fa-handshake"></i>
+                        <span>Interaction</span>
+                        <small>Two-person action</small>
+                    </button>
+                    <button type="button" class="cv_action_btn cv_image_action_btn primary" data-prompt-kind="environment">
+                        <i class="fa-solid fa-panorama"></i>
+                        <span>Environment</span>
+                        <small>Wide location view</small>
+                    </button>
+                </div>
                 <label class="cv_panel_label" for="comfyvideo_panel_video_source">Video source</label>
                 <select id="comfyvideo_panel_video_source" class="text_pole"></select>
                 <button type="button" class="cv_action_btn" id="comfyvideo_panel_gen_video">

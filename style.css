@@ -539,6 +539,31 @@
     margin-top: 4px;
 }
 
+.cv_image_action_grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    min-width: 0;
+}
+
+.cv_image_action_btn {
+    min-width: 0;
+    min-height: 66px;
+    flex-direction: column;
+    gap: 3px;
+    padding: 8px 6px;
+    line-height: 1.12;
+    text-align: center;
+}
+
+.cv_image_action_btn small {
+    max-width: 100%;
+    font-size: 0.69rem;
+    font-weight: 400;
+    line-height: 1.15;
+    opacity: 0.72;
+}
+
 .cv_action_btn {
     display: flex;
     align-items: center;

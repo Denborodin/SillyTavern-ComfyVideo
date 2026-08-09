@@ -4,7 +4,7 @@
 
 ComfyVideo provides a two-step scene image to MiniMax H3 video flow with
 editable libraries, prompt previews, workflow validation, mobile-friendly UI,
-and bundled Z-Image Turbo plus MiniMax H3 workflows.
+and bundled Z-Image Turbo, FLUX.2 Klein 9B, and MiniMax H3 workflows.
 
 Completed recently:
 
@@ -25,9 +25,18 @@ Completed recently:
 - Z-Image still-quality selector: video-safe 1×, High 1.5×, and Ultra 2×.
   The bundled H3 v2 workflow resizes the selected still with ComfyUI before
   conditioning, retaining the original high-resolution still in chat.
+- Exact 3:4 portrait and 4:3 landscape presets at H3-safe 864×1152 and
+  1152×864, with matching Z-Image quality multipliers that avoid cropping.
+- Bundled FLUX.2 Klein 9B distilled text-to-image workflow using the official
+  four-step, CFG 1, Euler configuration and the installed FP8 model set.
+- Structured multi-character image prompting shared by Z-Image and FLUX.2
+  Klein, with separate cast blocks, fixed screen positions, and explicit limb,
+  contact, and prop ownership.
+- Purpose-built Whole scene, Portrait, Interaction, and Environment image
+  actions in a compact mobile-friendly grid, backed by editable prompt presets.
 
 The combined Scene to Image to Video button was deliberately removed. The
-day-to-day flow remains separate Generate scene image and Generate video
+day-to-day flow remains separate composition-specific image and Generate video
 actions.
 
 ## Next recommended slice

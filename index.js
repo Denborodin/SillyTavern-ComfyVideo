@@ -50,6 +50,7 @@ import {
     overwriteItem,
     addItem,
     removeItem,
+    resolveImagePromptVariant,
     exportLibrariesBlob,
     importLibraries,
 } from './lib/library.js';
@@ -819,7 +820,7 @@ async function previewPrompt(title, initial, okLabel) {
     return String(edited).trim();
 }
 
-async function generateSceneImage() {
+async function generateSceneImage(promptKind = 'scene') {
     const st = getSettings();
     if (!st.enabled) {
         toastr.warning('ComfyVideo is disabled in settings.');
@@ -834,6 +835,13 @@ async function generateSceneImage() {
         return;
     }
 
+    const promptVariant = resolveImagePromptVariant(st, promptKind);
+    st.activeImagePromptId = promptVariant.id || st.activeImagePromptId;
+    st.imagePromptTemplate = promptVariant.template;
+    saveSettings();
+    applySettingsToUi();
+    refreshLibraryDropdowns();
+
     busy = true;
     const dims = resolveImageDimensions(st.resolution, st.imageQuality);
     /** @type {ReturnType<typeof showStatus>|null} */
@@ -842,7 +850,7 @@ async function generateSceneImage() {
     try {
         status = showStatus({
             title: 'ComfyVideo',
-            message: 'Building image prompt…',
+            message: `Building ${promptVariant.label.toLowerCase()} prompt…`,
             onStop: () => comfy.interrupt(st.comfyUrl),
         });
 
@@ -853,7 +861,7 @@ async function generateSceneImage() {
         if (st.confirmImagePrompt) {
             status.close();
             status = null;
-            const edited = await previewPrompt('Edit image prompt, then generate', imagePrompt, 'Generate');
+            const edited = await previewPrompt(`Edit ${promptVariant.label.toLowerCase()} prompt, then generate`, imagePrompt, 'Generate');
             if (edited === null) return;
             if (!edited) {
                 toastr.warning('Empty prompt cancelled.');
@@ -899,6 +907,9 @@ async function generateSceneImage() {
             prompt: imagePrompt,
             meta: {
                 imagePrompt,
+                imagePromptKind: promptVariant.kind,
+                imagePromptPresetId: promptVariant.id,
+                imagePromptPresetName: promptVariant.name,
                 seed,
                 step: 'image',
                 width: dims.width,
@@ -912,7 +923,7 @@ async function generateSceneImage() {
             systemUserName,
         });
 
-        toastr.success('Scene image attached.', 'ComfyVideo');
+        toastr.success(`${promptVariant.label} image attached.`, 'ComfyVideo');
         injectI2vButtons();
     } catch (e) {
         if (isAbortError(e)) toastr.info('Stopped.', 'ComfyVideo');

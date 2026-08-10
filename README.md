@@ -22,7 +22,10 @@ Tuned for **natural language**:
 - **Image composition presets (Z-Image / FLUX.2 Klein)** — Whole scene,
   single-character Portrait, precise two-person Interaction, and wide
   Environment prompts. Each remains editable in the prompt library.
-- **MiniMax H3 (video)** — I2V motion only; clip length from **frames ÷ fps** (≈ one line per 1–2 seconds).
+- **MiniMax H3 (video)** — official I2VA structure with a first-frame
+  `<Picture 1>` anchor, `integrated_multimodal_description`,
+  `overall_soundscape`, and `non_diegetic_music`. Action density still scales
+  from **frames ÷ fps**.
 
 Motion prompts **always** use the LLM (no fixed-only mode). Prompt previews
 auto-submit after 10 seconds unless you edit the prompt; then they remain open
@@ -63,8 +66,11 @@ still with ComfyUI's built-in Lanczos `ImageScale` node before conditioning, so
 the original high-resolution still remains in chat while H3 receives a safe size.
 
 Photo, realistic digital-art, and Western detailed-comic styles are appended
-to both final image and motion prompts, and shown in their previews. Instruction
-library entries remain user-editable and are not replaced when the extension loads.
+to image prompts and inserted into H3's `[Shot 1]`, so the official field order
+remains valid. Both final prompts are shown in their previews. Instruction
+library entries remain user-editable and customized entries are not replaced
+when the extension loads. See the official
+[MiniMax H3 prompt guides](https://huggingface.co/MiniMaxAI/MiniMax-H3/tree/main/docs).
 
 ## Bundled workflows
 

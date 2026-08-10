@@ -11,7 +11,8 @@ Completed recently:
 - Compact panel with portrait/landscape controls and shared Photo, Digital art,
   and Western comic styles.
 - H3 motion intensity: Subtle, Normal, and Energetic.
-- Structured timestamped H3 motion-prompt preset.
+- Official MiniMax H3 I2VA prompt preset with first-frame alignment, structured
+  audiovisual description, soundscape, and non-diegetic music fields.
 - Immediate extension-side cancellation for quiet and connection-profile LLM
   prompt generation.
 - Image and motion prompt previews auto-submit unchanged after 10 seconds and

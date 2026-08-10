@@ -191,12 +191,31 @@ function resolveVideoDimensions(settings, message) {
     return resolveDimensions(settings.resolution);
 }
 
-function appendVisualStyle(prompt, settings) {
-    const scene = String(prompt || '').trim();
-    const style = settings.imageStylePreset === 'custom'
+function resolveVisualStyle(settings) {
+    return settings.imageStylePreset === 'custom'
         ? String(settings.customImageStyle || '').trim()
         : (IMAGE_STYLE_PROMPTS[settings.imageStylePreset] || '');
+}
+
+function appendVisualStyle(prompt, settings) {
+    const scene = String(prompt || '').trim();
+    const style = resolveVisualStyle(settings);
     return style ? `${scene}\n\nVisual style: ${style}` : scene;
+}
+
+function appendMotionVisualStyle(prompt, settings) {
+    const motion = String(prompt || '').trim();
+    const style = resolveVisualStyle(settings);
+    if (!style) return motion;
+
+    // Official H3 I2VA prompts require the alignment instruction followed by
+    // three fields. Keep style guidance inside Shot 1 instead of appending a
+    // fourth field after non_diegetic_music.
+    const shotOne = /integrated_multimodal_description:\s*\[Shot 1\]\s*/i;
+    if (shotOne.test(motion)) {
+        return motion.replace(shotOne, match => `${match}The target video preserves this visual treatment: ${style} `);
+    }
+    return appendVisualStyle(motion, settings);
 }
 
 function populateProfileDropdown() {
@@ -984,7 +1003,7 @@ async function generateVideoForMessage(messageId) {
             sourceImagePrompt,
             signal: status.signal,
         });
-        motionPrompt = appendVisualStyle(motionPrompt, st);
+        motionPrompt = appendMotionVisualStyle(motionPrompt, st);
         if (status.aborted) throw new DOMException('Aborted', 'AbortError');
 
         if (st.confirmMotionPrompt) {

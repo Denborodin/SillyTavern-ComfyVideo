@@ -86,6 +86,12 @@ workflows** in Library backup to explicitly restore a deleted copy.
   It follows the official four-step, CFG 1, Euler configuration and accepts
   prompt, seed, width, and height placeholders. It uses only built-in ComfyUI
   nodes and intentionally zeroes negative conditioning.
+- **Krea 2 Turbo + KNP V4.1** uses `krea2_turbo_fp8_scaled.safetensors`,
+  `qwen3vl_4b_fp8_scaled.safetensors`, `qwen_image_vae.safetensors`, and the
+  `KNPV4.1_pre.safetensors` LoRA at strength 1. It uses 12 Euler/simple steps,
+  CFG 1, zero negative conditioning, and accepts prompt, seed, width, and height
+  placeholders. It requires a ComfyUI build with Krea 2 loader support; all
+  workflow nodes are built in.
 - **MiniMax H3 I2V v2** uses the MiniMax H3 UNet, Qwen3-VL clip, video/audio
   VAEs, built-in `ImageScale`, `MiniMaxH3ImageToVideo`, and video nodes. It
   resizes its source image to the H3 dimensions before generation and accepts

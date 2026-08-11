@@ -1199,6 +1199,7 @@ function setupMessageHooks() {
         event_types.USER_MESSAGE_RENDERED,
         event_types.MESSAGE_UPDATED,
         event_types.MESSAGE_SWIPED,
+        event_types.MORE_MESSAGES_LOADED,
         event_types.CHAT_CHANGED,
     ].filter(Boolean);
     for (const ev of events) {

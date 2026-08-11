@@ -19,9 +19,11 @@ Export / Import JSON under **Library backup**.
 
 Tuned for **natural language**:
 
-- **Image composition presets (Z-Image / FLUX.2 Klein)** — Whole scene,
+- **Image composition presets (Z-Image / Krea 2 / FLUX.2 Klein)** — Whole scene,
   single-character Portrait, precise two-person Interaction, and wide
-  Environment prompts. Each remains editable in the prompt library.
+  Environment prompts. They default to natural camera distance and perspective,
+  avoiding close wide-angle and dramatic viewpoints unless the scene calls for
+  them. Each remains editable in the prompt library.
 - **MiniMax H3 (video)** — official I2VA structure with a first-frame
   `<Picture 1>` anchor, `integrated_multimodal_description`,
   `overall_soundscape`, and `non_diegetic_music`. Action density still scales

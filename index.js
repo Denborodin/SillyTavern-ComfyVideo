@@ -41,6 +41,9 @@ import { showStatus, newClientId, isAbortError } from './lib/status-ui.js';
 import {
     DEFAULT_IMAGE_PROMPT_TEMPLATE,
     DEFAULT_MOTION_PROMPT_TEMPLATE,
+    DEFAULT_VIDEO_FPS,
+    DEFAULT_VIDEO_FRAMES,
+    alignH3FrameCount,
     clipTiming,
 } from './lib/defaults.js';
 import {
@@ -92,8 +95,8 @@ const defaultSettings = Object.freeze({
     useLlmPreset: false,
 
     i2vWorkflow: '',
-    frames: 16,
-    fps: 8,
+    frames: DEFAULT_VIDEO_FRAMES,
+    fps: DEFAULT_VIDEO_FPS,
     motionIntensity: 'normal',
     motionPromptTemplate: DEFAULT_MOTION_PROMPT_TEMPLATE,
     confirmMotionPrompt: true,
@@ -103,6 +106,7 @@ const defaultSettings = Object.freeze({
     imageStylePreset: 'photo',
     customImageStyle: '',
     installedBundledWorkflowVersions: {},
+    appliedBundledDefaults: {},
 
     attachImageMode: 'last',
 
@@ -149,6 +153,7 @@ function getSettings() {
     if (!['subtle', 'normal', 'energetic'].includes(st.motionIntensity)) {
         st.motionIntensity = defaultSettings.motionIntensity;
     }
+    if (migrateClipDefaults(st)) saveSettings();
     if (!['compatible', 'high', 'ultra'].includes(st.imageQuality)) {
         st.imageQuality = defaultSettings.imageQuality;
     }
@@ -167,11 +172,35 @@ function saveSettings() {
     saveSettingsDebounced();
 }
 
+/**
+ * Replace the stale 16/8 factory default and the old 24fps 5s/10s buttons
+ * with H3's 17k+5 grid. Custom frame counts are left for generate-time snap.
+ * @param {object} st
+ */
+function migrateClipDefaults(st) {
+    const frames = Number(st.frames);
+    const fps = Number(st.fps);
+    if (frames === 16 && fps === 8) {
+        st.frames = DEFAULT_VIDEO_FRAMES;
+        st.fps = DEFAULT_VIDEO_FPS;
+        return true;
+    }
+    if (fps === 24 && frames === 120) {
+        st.frames = 124;
+        return true;
+    }
+    if (fps === 24 && frames === 240) {
+        st.frames = 243;
+        return true;
+    }
+    return false;
+}
+
 async function addBundledWorkflows(restore = false) {
     const settings = getSettings();
     const bundled = await loadBundledWorkflows(EXT_NAME);
-    const added = seedBundledWorkflows(settings, bundled, restore);
-    if (added) saveSettings();
+    const { added, changed } = seedBundledWorkflows(settings, bundled, restore);
+    if (changed) saveSettings();
     return added;
 }
 
@@ -1037,6 +1066,14 @@ async function generateVideoForMessage(messageId) {
     if (!imageUrl) {
         toastr.error('No image on this message to animate.');
         return;
+    }
+
+    const alignedFrames = alignH3FrameCount(st.frames);
+    if (alignedFrames !== Number(st.frames)) {
+        st.frames = alignedFrames;
+        saveSettings();
+        panel?.refresh();
+        applySettingsToUi();
     }
 
     busy = true;

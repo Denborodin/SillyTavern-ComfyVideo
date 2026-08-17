@@ -4,7 +4,7 @@
 
 ComfyVideo provides a two-step scene image to MiniMax H3 video flow with
 editable libraries, prompt previews, workflow validation, mobile-friendly UI,
-and bundled Z-Image Turbo, FLUX.2 Klein 9B, and MiniMax H3 workflows.
+and bundled Z-Image Turbo, FLUX.2 Klein 9B, MiniMax H3, and H3 Turbo workflows.
 
 Completed recently:
 
@@ -21,11 +21,13 @@ Completed recently:
 - Last-still thumbnail preview for the separate Generate video action.
 - Selectable video source picker, preserving the selected still's orientation
   while H3 stays at its supported output dimensions.
-- Quick video-duration presets: 5s / 120 frames, 8s / 192 frames, and
-  10s / 240 frames, all at 24 FPS.
+- Quick video-duration presets: 5s / 124 frames, 8s / 192 frames, and
+  10s / 243 frames, all at 24 FPS on MiniMax H3's 17k+5 grid.
 - Z-Image still-quality selector: video-safe 1×, High 1.5×, and Ultra 2×.
-  The bundled H3 v2 workflow resizes the selected still with ComfyUI before
-  conditioning, retaining the original high-resolution still in chat.
+  The bundled H3 Turbo workflow is the default I2V sample. H3 v2 remains as a
+  no-LoRA fallback. Both resize the selected still with ComfyUI before
+  conditioning, retaining the original high-resolution still in chat. Turbo
+  uses Larryvrh's v4 600 EMA LoRA at 8 simple steps.
 - Exact 3:4 portrait and 4:3 landscape presets at H3-safe 864×1152 and
   1152×864, with matching Z-Image quality multipliers that avoid cropping.
 - Bundled FLUX.2 Klein 9B distilled text-to-image workflow using the official
@@ -51,9 +53,8 @@ actions.
 
 ### 2. Verify MiniMax H3 timing
 
-- Test the bundled H3 workflow with 120, 192, and 240 frame requests at
-  24 FPS.
-- Document any model-specific length alignment or maximum-duration rules.
+- Confirm 124 / 192 / 243 at 24 FPS through a live H3 run if the local
+  ComfyUI session is available.
 
 ## Backlog
 

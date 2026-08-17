@@ -140,7 +140,7 @@
             </div>
             <textarea id="comfyvideo_motion_prompt_template" class="text_pole" rows="5"></textarea>
             <p class="comfyvideo-hint">
-                Use <code>{{clip_seconds}}</code> and <code>{{motion_lines}}</code> — filled from frames÷fps (about one line per 1–2s).
+                Use <code>{{clip_seconds}}</code>, <code>{{motion_lines}}</code>, and <code>{{intensity}}</code> — filled from clip timing and the selected motion intensity.
             </p>
             <div class="comfyvideo-row">
                 <label for="comfyvideo_frames">Frames</label>
@@ -181,11 +181,7 @@
                 <option value="last">Last message</option>
                 <option value="new">New message</option>
             </select>
-            <label for="comfyvideo_attach_video">Attach video to</label>
-            <select id="comfyvideo_attach_video" class="text_pole">
-                <option value="same">Same message</option>
-                <option value="new">New message</option>
-            </select>
+            <p class="notes">Video results are inserted immediately after their source message.</p>
         </div>
 
         <div class="comfyvideo-section">

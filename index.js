@@ -33,7 +33,6 @@ import {
 import { createPromptBuilder } from './lib/prompt-builder.js';
 import {
     attachGeneratedMedia,
-    attachVideoToMessage,
     getMessageImageUrl,
     isComfyVideoMessage,
     isVideoFormat,
@@ -106,7 +105,6 @@ const defaultSettings = Object.freeze({
     installedBundledWorkflowVersions: {},
 
     attachImageMode: 'last',
-    attachVideoMode: 'same',
 
     activeImageWorkflowId: '',
     activeI2vWorkflowId: '',
@@ -191,12 +189,39 @@ function resolveVideoDimensions(settings, message) {
     return resolveDimensions(settings.resolution);
 }
 
-function appendVisualStyle(prompt, settings) {
-    const scene = String(prompt || '').trim();
-    const style = settings.imageStylePreset === 'custom'
+function resolveVisualStyle(settings) {
+    return settings.imageStylePreset === 'custom'
         ? String(settings.customImageStyle || '').trim()
         : (IMAGE_STYLE_PROMPTS[settings.imageStylePreset] || '');
-    return style ? `${scene}\n\nVisual style: ${style}` : scene;
+}
+
+function appendVisualStyle(prompt, settings) {
+    const scene = String(prompt || '').trim();
+    const style = resolveVisualStyle(settings);
+    if (!style) return scene;
+
+    // The selected panel style is assembled here. Some instruction presets or
+    // models also emit a final "Visual style:" section; replace that trailing
+    // section so it cannot be duplicated or conflict with the panel setting.
+    const sceneWithoutTrailingStyle = scene
+        .replace(/(?:\n\s*)+Visual style:\s*[\s\S]*$/i, '')
+        .trim();
+    return `${sceneWithoutTrailingStyle}\n\nVisual style: ${style}`;
+}
+
+function appendMotionVisualStyle(prompt, settings) {
+    const motion = String(prompt || '').trim();
+    const style = resolveVisualStyle(settings);
+    if (!style) return motion;
+
+    // Official H3 I2VA prompts require the alignment instruction followed by
+    // three fields. Keep style guidance inside Shot 1 instead of appending a
+    // fourth field after non_diegetic_music.
+    const shotOne = /integrated_multimodal_description:\s*\[Shot 1\]\s*/i;
+    if (shotOne.test(motion)) {
+        return motion.replace(shotOne, match => `${match}The target video preserves this visual treatment: ${style} `);
+    }
+    return appendVisualStyle(motion, settings);
 }
 
 function populateProfileDropdown() {
@@ -322,7 +347,6 @@ function bindSettingsUi() {
         ['comfyvideo_image_style', 'imageStylePreset', 'value'],
         ['comfyvideo_custom_image_style', 'customImageStyle', 'value'],
         ['comfyvideo_attach_image', 'attachImageMode', 'value'],
-        ['comfyvideo_attach_video', 'attachVideoMode', 'value'],
     ];
 
     for (const [id, key, kind] of map) {
@@ -712,7 +736,6 @@ function applySettingsToUi() {
     document.getElementById('comfyvideo_custom_image_style_wrap')?.classList.toggle(
         'displayNone', st.imageStylePreset !== 'custom');
     set('comfyvideo_attach_image', st.attachImageMode);
-    set('comfyvideo_attach_video', st.attachVideoMode);
 }
 
 async function onTestConnection() {
@@ -797,12 +820,15 @@ async function previewPrompt(title, initial, okLabel) {
         rows: 10,
         wide: true,
         onOpen: current => {
-            const stopOnEdit = () => {
+            const stopOnInteraction = () => {
                 editedByUser = true;
                 stopTimer();
                 current.okButton.textContent = okLabel;
             };
-            current.mainInput.addEventListener('input', stopOnEdit, { once: true });
+            // Taking focus or tapping the field is an intent to review or edit it.
+            for (const eventName of ['focus', 'pointerdown', 'input']) {
+                current.mainInput.addEventListener(eventName, stopOnInteraction, { once: true });
+            }
             timer = setInterval(() => {
                 secondsLeft--;
                 if (secondsLeft <= 0) {
@@ -820,8 +846,13 @@ async function previewPrompt(title, initial, okLabel) {
     return String(edited).trim();
 }
 
-async function generateSceneImage(promptKind = 'scene') {
+async function generateSceneImage(promptKind = 'scene', opts = {}) {
     const st = getSettings();
+    const {
+        targetMessage = null,
+        skipPromptConfirmation = false,
+        regenerationMedia = null,
+    } = opts;
     if (!st.enabled) {
         toastr.warning('ComfyVideo is disabled in settings.');
         return;
@@ -830,12 +861,23 @@ async function generateSceneImage(promptKind = 'scene') {
         toastr.info('ComfyVideo is already working.');
         return;
     }
-    if (!st.imageWorkflow?.trim()) {
+    const savedRecipe = regenerationMedia?.comfyVideo
+        || targetMessage?.extra?.comfyVideo
+        || null;
+    const imageWorkflow = String(savedRecipe?.imageWorkflow || st.imageWorkflow || '').trim();
+    if (!imageWorkflow) {
         toastr.error('Add an Image workflow (library → Edit / Save as…).');
         return;
     }
 
-    const promptVariant = resolveImagePromptVariant(st, promptKind);
+    const ctx = getContext();
+    const sourceChatId = typeof ctx.getCurrentChatId === 'function' ? ctx.getCurrentChatId() : null;
+    if (targetMessage && !ctx.chat?.includes(targetMessage)) {
+        toastr.error('The selected message is no longer available in this chat.', 'ComfyVideo');
+        return;
+    }
+
+    const promptVariant = resolveImagePromptVariant(st, savedRecipe?.imagePromptKind || promptKind);
     st.activeImagePromptId = promptVariant.id || st.activeImagePromptId;
     st.imagePromptTemplate = promptVariant.template;
     saveSettings();
@@ -843,22 +885,40 @@ async function generateSceneImage(promptKind = 'scene') {
     refreshLibraryDropdowns();
 
     busy = true;
-    const dims = resolveImageDimensions(st.resolution, st.imageQuality);
+    const savedWidth = Number(savedRecipe?.width);
+    const savedHeight = Number(savedRecipe?.height);
+    const dims = Number.isFinite(savedWidth) && Number.isFinite(savedHeight)
+        && savedWidth > 0 && savedHeight > 0
+        ? { width: savedWidth, height: savedHeight }
+        : resolveImageDimensions(st.resolution, st.imageQuality);
     /** @type {ReturnType<typeof showStatus>|null} */
     let status = null;
 
     try {
         status = showStatus({
             title: 'ComfyVideo',
-            message: `Building ${promptVariant.label.toLowerCase()} prompt…`,
+            message: regenerationMedia
+                ? 'Preparing image regeneration…'
+                : `Building ${promptVariant.label.toLowerCase()} prompt…`,
             onStop: () => comfy.interrupt(st.comfyUrl),
         });
 
-        let imagePrompt = await prompts.buildImagePrompt(st, status.signal);
-        imagePrompt = appendVisualStyle(imagePrompt, st);
+        // Quick Regen must replay the selected image's actual Comfy request,
+        // not ask the LLM to describe the scene again. The saved prompt is
+        // already the final, style-appended prompt sent to ComfyUI.
+        let imagePrompt = regenerationMedia
+            ? String(savedRecipe?.imagePrompt || regenerationMedia.title || '').trim()
+            : await prompts.buildImagePrompt(st, {
+                signal: status.signal,
+                targetMessage,
+            });
+        if (!regenerationMedia) imagePrompt = appendVisualStyle(imagePrompt, st);
+        if (regenerationMedia && !imagePrompt) {
+            throw new Error('This gallery image has no saved ComfyVideo prompt and cannot be regenerated.');
+        }
         if (status.aborted) throw new DOMException('Aborted', 'AbortError');
 
-        if (st.confirmImagePrompt) {
+        if (st.confirmImagePrompt && !skipPromptConfirmation) {
             status.close();
             status = null;
             const edited = await previewPrompt(`Edit ${promptVariant.label.toLowerCase()} prompt, then generate`, imagePrompt, 'Generate');
@@ -881,7 +941,7 @@ async function generateSceneImage(promptKind = 'scene') {
         status.watchComfy(st.comfyUrl, clientId);
         status.setProgress(null);
 
-        const nodes = parseWorkflow(st.imageWorkflow);
+        const nodes = parseWorkflow(imageWorkflow);
         validateWorkflow(nodes, 'image');
         const seed = resolveSeed(st);
         const filled = fillPlaceholders(nodes, {
@@ -896,7 +956,6 @@ async function generateSceneImage(promptKind = 'scene') {
         status.setMessage('Saving…');
         status.setProgress(100);
 
-        const ctx = getContext();
         const charName = ctx.name2 || 'ComfyVideo';
         const path = await saveBase64AsFile(result.data, charName, `ComfyVideo_${humanizedDateTime()}`, result.format);
 
@@ -910,12 +969,22 @@ async function generateSceneImage(promptKind = 'scene') {
                 imagePromptKind: promptVariant.kind,
                 imagePromptPresetId: promptVariant.id,
                 imagePromptPresetName: promptVariant.name,
+                imageWorkflow,
+                imageWorkflowId: savedRecipe?.imageWorkflowId || st.activeImageWorkflowId,
+                imageWorkflowName: savedRecipe?.imageWorkflowName
+                    || findItem(st.libraries.imageWorkflows, st.activeImageWorkflowId)?.name
+                    || '',
                 seed,
                 step: 'image',
+                sourceMessageId: targetMessage ? ctx.chat.indexOf(targetMessage) : undefined,
                 width: dims.width,
                 height: dims.height,
             },
-            attachMode: st.attachImageMode === 'new' ? 'new' : 'last',
+            attachMode: regenerationMedia
+                ? 'same'
+                : (targetMessage ? 'after' : (st.attachImageMode === 'new' ? 'new' : 'last')),
+            insertAfterMessage: targetMessage,
+            sourceChatId,
             appendMediaToMessage,
             eventSource,
             event_types,
@@ -923,8 +992,10 @@ async function generateSceneImage(promptKind = 'scene') {
             systemUserName,
         });
 
-        toastr.success(`${promptVariant.label} image attached.`, 'ComfyVideo');
-        injectI2vButtons();
+        toastr.success(regenerationMedia
+            ? 'Image regeneration added to this gallery.'
+            : `${promptVariant.label} image attached.`, 'ComfyVideo');
+        injectMessageActions();
     } catch (e) {
         if (isAbortError(e)) toastr.info('Stopped.', 'ComfyVideo');
         else {
@@ -956,6 +1027,7 @@ async function generateVideoForMessage(messageId) {
     }
 
     const ctx = getContext();
+    const sourceChatId = typeof ctx.getCurrentChatId === 'function' ? ctx.getCurrentChatId() : null;
     const message = ctx.chat[messageId];
     if (!message) {
         toastr.error('Message not found.');
@@ -983,8 +1055,9 @@ async function generateVideoForMessage(messageId) {
         let motionPrompt = await prompts.buildMotionPrompt(st, {
             sourceImagePrompt,
             signal: status.signal,
+            targetMessage: message,
         });
-        motionPrompt = appendVisualStyle(motionPrompt, st);
+        motionPrompt = appendMotionVisualStyle(motionPrompt, st);
         if (status.aborted) throw new DOMException('Aborted', 'AbortError');
 
         if (st.confirmMotionPrompt) {
@@ -1047,41 +1120,31 @@ async function generateVideoForMessage(messageId) {
             motionPrompt,
             seed,
             step: 'i2v',
-            sourceMessageId: messageId,
+            sourceMessageId: ctx.chat.indexOf(message),
             frames: st.frames,
             fps: st.fps,
             width: dims.width,
             height: dims.height,
         };
 
-        if (st.attachVideoMode === 'new') {
-            await attachGeneratedMedia({
-                context: ctx,
-                url: path,
-                format: result.format,
-                prompt: motionPrompt,
-                meta,
-                attachMode: 'new',
-                appendMediaToMessage,
-                eventSource,
-                event_types,
-                getMessageTimeStamp,
-                systemUserName,
-            });
-        } else {
-            await attachVideoToMessage({
-                context: ctx,
-                messageId,
-                url: path,
-                format: result.format,
-                prompt: motionPrompt,
-                meta,
-                appendMediaToMessage,
-            });
-        }
+        await attachGeneratedMedia({
+            context: ctx,
+            url: path,
+            format: result.format,
+            prompt: motionPrompt,
+            meta,
+            attachMode: 'after',
+            insertAfterMessage: message,
+            sourceChatId,
+            appendMediaToMessage,
+            eventSource,
+            event_types,
+            getMessageTimeStamp,
+            systemUserName,
+        });
 
         toastr.success(`${isVideoFormat(result.format) ? 'Video' : 'Output'} attached.`, 'ComfyVideo');
-        injectI2vButtons();
+        injectMessageActions();
     } catch (e) {
         if (isAbortError(e)) toastr.info('Stopped.', 'ComfyVideo');
         else {
@@ -1094,7 +1157,27 @@ async function generateVideoForMessage(messageId) {
     }
 }
 
-function injectI2vButtons() {
+function createMessageAction(className, iconClass, title, onClick) {
+    const button = document.createElement('div');
+    button.className = `mes_button ${className} ${iconClass} interactable`;
+    button.title = title;
+    button.setAttribute('role', 'button');
+    button.setAttribute('aria-label', title);
+    button.setAttribute('tabindex', '0');
+    button.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        onClick();
+    });
+    button.addEventListener('keydown', e => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        button.click();
+    });
+    return button;
+}
+
+function injectMessageActions() {
     const st = getSettings();
     if (!st.enabled) return;
     const ctx = getContext();
@@ -1102,23 +1185,67 @@ function injectI2vButtons() {
         const id = Number(mesEl.getAttribute('mesid'));
         if (Number.isNaN(id)) return;
         const message = ctx.chat[id];
-        if (!message || !isComfyVideoMessage(message)) return;
-        if (!getMessageImageUrl(message)) return;
+        if (!message) return;
         const buttons = mesEl.querySelector('.mes_buttons');
-        if (!buttons || buttons.querySelector('.comfyvideo-i2v-btn')) return;
-        const btn = document.createElement('div');
-        btn.className = 'mes_button comfyvideo-i2v-btn fa-solid fa-film interactable';
-        btn.title = 'ComfyVideo: Generate Video (I2V)';
-        btn.setAttribute('tabindex', '0');
-        btn.addEventListener('click', e => {
-            e.preventDefault();
-            e.stopPropagation();
-            generateVideoForMessage(id).catch(err => {
+        if (!buttons) return;
+
+        if (!buttons.querySelector('.comfyvideo-message-panel-btn')) {
+            const button = createMessageAction(
+                'comfyvideo-message-panel-btn',
+                'fa-solid fa-clapperboard',
+                'ComfyVideo: open image and video generator for this message',
+                () => panel?.open({ targetMessage: message }).catch(err => {
+                    console.error(LOG, err);
+                    toastr.error(String(err.message || err), 'ComfyVideo');
+                }),
+            );
+            buttons.prepend(button);
+        }
+
+        if (!buttons.querySelector('.comfyvideo-quick-gen-btn')) {
+            const button = createMessageAction(
+                'comfyvideo-quick-gen-btn',
+                'fa-solid fa-bolt',
+                isComfyVideoMessage(message)
+                    ? 'ComfyVideo: quickly regenerate the selected gallery image'
+                    : 'ComfyVideo: quick generate whole-scene image for this message',
+                () => {
+                    const media = message.extra?.media;
+                    const selectedIndex = Number(message.extra?.media_index);
+                    const selectedMedia = Array.isArray(media)
+                        ? (media[selectedIndex] || media[media.length - 1])
+                        : null;
+                    const regenerationMedia = selectedMedia?.comfyVideo && !isVideoFormat(selectedMedia.type)
+                        ? selectedMedia
+                        : null;
+                    return generateSceneImage('scene', {
+                        targetMessage: message,
+                        regenerationMedia,
+                        // A gallery regeneration should honor the normal
+                        // prompt-preview preference; ordinary Quick Generate
+                        // remains a one-tap action.
+                        skipPromptConfirmation: !regenerationMedia,
+                    }).catch(err => {
+                        console.error(LOG, err);
+                        toastr.error(String(err.message || err), 'ComfyVideo');
+                    });
+                },
+            );
+            buttons.prepend(button);
+        }
+
+        if (!isComfyVideoMessage(message) || !getMessageImageUrl(message)) return;
+        if (buttons.querySelector('.comfyvideo-i2v-btn')) return;
+        const button = createMessageAction(
+            'comfyvideo-i2v-btn',
+            'fa-solid fa-film',
+            'ComfyVideo: Generate Video (I2V)',
+            () => generateVideoForMessage(id).catch(err => {
                 console.error(LOG, err);
                 toastr.error(String(err.message || err), 'ComfyVideo');
-            });
-        });
-        buttons.prepend(btn);
+            }),
+        );
+        buttons.prepend(button);
     });
 }
 
@@ -1128,12 +1255,13 @@ function setupMessageHooks() {
         event_types.USER_MESSAGE_RENDERED,
         event_types.MESSAGE_UPDATED,
         event_types.MESSAGE_SWIPED,
+        event_types.MORE_MESSAGES_LOADED,
         event_types.CHAT_CHANGED,
     ].filter(Boolean);
     for (const ev of events) {
-        eventSource.on(ev, () => setTimeout(injectI2vButtons, 50));
+        eventSource.on(ev, () => setTimeout(injectMessageActions, 50));
     }
-    setTimeout(injectI2vButtons, 500);
+    setTimeout(injectMessageActions, 500);
 }
 
 jQuery(async () => {

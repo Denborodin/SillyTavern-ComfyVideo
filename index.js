@@ -198,7 +198,15 @@ function resolveVisualStyle(settings) {
 function appendVisualStyle(prompt, settings) {
     const scene = String(prompt || '').trim();
     const style = resolveVisualStyle(settings);
-    return style ? `${scene}\n\nVisual style: ${style}` : scene;
+    if (!style) return scene;
+
+    // The selected panel style is assembled here. Some instruction presets or
+    // models also emit a final "Visual style:" section; replace that trailing
+    // section so it cannot be duplicated or conflict with the panel setting.
+    const sceneWithoutTrailingStyle = scene
+        .replace(/(?:\n\s*)+Visual style:\s*[\s\S]*$/i, '')
+        .trim();
+    return `${sceneWithoutTrailingStyle}\n\nVisual style: ${style}`;
 }
 
 function appendMotionVisualStyle(prompt, settings) {
@@ -840,7 +848,11 @@ async function previewPrompt(title, initial, okLabel) {
 
 async function generateSceneImage(promptKind = 'scene', opts = {}) {
     const st = getSettings();
-    const { targetMessage = null, skipPromptConfirmation = false } = opts;
+    const {
+        targetMessage = null,
+        skipPromptConfirmation = false,
+        regenerationMedia = null,
+    } = opts;
     if (!st.enabled) {
         toastr.warning('ComfyVideo is disabled in settings.');
         return;
@@ -849,7 +861,11 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
         toastr.info('ComfyVideo is already working.');
         return;
     }
-    if (!st.imageWorkflow?.trim()) {
+    const savedRecipe = regenerationMedia?.comfyVideo
+        || targetMessage?.extra?.comfyVideo
+        || null;
+    const imageWorkflow = String(savedRecipe?.imageWorkflow || st.imageWorkflow || '').trim();
+    if (!imageWorkflow) {
         toastr.error('Add an Image workflow (library → Edit / Save as…).');
         return;
     }
@@ -861,7 +877,7 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
         return;
     }
 
-    const promptVariant = resolveImagePromptVariant(st, promptKind);
+    const promptVariant = resolveImagePromptVariant(st, savedRecipe?.imagePromptKind || promptKind);
     st.activeImagePromptId = promptVariant.id || st.activeImagePromptId;
     st.imagePromptTemplate = promptVariant.template;
     saveSettings();
@@ -869,22 +885,37 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
     refreshLibraryDropdowns();
 
     busy = true;
-    const dims = resolveImageDimensions(st.resolution, st.imageQuality);
+    const savedWidth = Number(savedRecipe?.width);
+    const savedHeight = Number(savedRecipe?.height);
+    const dims = Number.isFinite(savedWidth) && Number.isFinite(savedHeight)
+        && savedWidth > 0 && savedHeight > 0
+        ? { width: savedWidth, height: savedHeight }
+        : resolveImageDimensions(st.resolution, st.imageQuality);
     /** @type {ReturnType<typeof showStatus>|null} */
     let status = null;
 
     try {
         status = showStatus({
             title: 'ComfyVideo',
-            message: `Building ${promptVariant.label.toLowerCase()} prompt…`,
+            message: regenerationMedia
+                ? 'Preparing image regeneration…'
+                : `Building ${promptVariant.label.toLowerCase()} prompt…`,
             onStop: () => comfy.interrupt(st.comfyUrl),
         });
 
-        let imagePrompt = await prompts.buildImagePrompt(st, {
-            signal: status.signal,
-            targetMessage,
-        });
-        imagePrompt = appendVisualStyle(imagePrompt, st);
+        // Quick Regen must replay the selected image's actual Comfy request,
+        // not ask the LLM to describe the scene again. The saved prompt is
+        // already the final, style-appended prompt sent to ComfyUI.
+        let imagePrompt = regenerationMedia
+            ? String(savedRecipe?.imagePrompt || regenerationMedia.title || '').trim()
+            : await prompts.buildImagePrompt(st, {
+                signal: status.signal,
+                targetMessage,
+            });
+        if (!regenerationMedia) imagePrompt = appendVisualStyle(imagePrompt, st);
+        if (regenerationMedia && !imagePrompt) {
+            throw new Error('This gallery image has no saved ComfyVideo prompt and cannot be regenerated.');
+        }
         if (status.aborted) throw new DOMException('Aborted', 'AbortError');
 
         if (st.confirmImagePrompt && !skipPromptConfirmation) {
@@ -910,7 +941,7 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
         status.watchComfy(st.comfyUrl, clientId);
         status.setProgress(null);
 
-        const nodes = parseWorkflow(st.imageWorkflow);
+        const nodes = parseWorkflow(imageWorkflow);
         validateWorkflow(nodes, 'image');
         const seed = resolveSeed(st);
         const filled = fillPlaceholders(nodes, {
@@ -938,13 +969,20 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
                 imagePromptKind: promptVariant.kind,
                 imagePromptPresetId: promptVariant.id,
                 imagePromptPresetName: promptVariant.name,
+                imageWorkflow,
+                imageWorkflowId: savedRecipe?.imageWorkflowId || st.activeImageWorkflowId,
+                imageWorkflowName: savedRecipe?.imageWorkflowName
+                    || findItem(st.libraries.imageWorkflows, st.activeImageWorkflowId)?.name
+                    || '',
                 seed,
                 step: 'image',
                 sourceMessageId: targetMessage ? ctx.chat.indexOf(targetMessage) : undefined,
                 width: dims.width,
                 height: dims.height,
             },
-            attachMode: targetMessage ? 'after' : (st.attachImageMode === 'new' ? 'new' : 'last'),
+            attachMode: regenerationMedia
+                ? 'same'
+                : (targetMessage ? 'after' : (st.attachImageMode === 'new' ? 'new' : 'last')),
             insertAfterMessage: targetMessage,
             sourceChatId,
             appendMediaToMessage,
@@ -954,7 +992,9 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
             systemUserName,
         });
 
-        toastr.success(`${promptVariant.label} image attached.`, 'ComfyVideo');
+        toastr.success(regenerationMedia
+            ? 'Image regeneration added to this gallery.'
+            : `${promptVariant.label} image attached.`, 'ComfyVideo');
         injectMessageActions();
     } catch (e) {
         if (isAbortError(e)) toastr.info('Stopped.', 'ComfyVideo');
@@ -1166,14 +1206,30 @@ function injectMessageActions() {
             const button = createMessageAction(
                 'comfyvideo-quick-gen-btn',
                 'fa-solid fa-bolt',
-                'ComfyVideo: quick generate whole-scene image for this message',
-                () => generateSceneImage('scene', {
-                    targetMessage: message,
-                    skipPromptConfirmation: true,
-                }).catch(err => {
-                    console.error(LOG, err);
-                    toastr.error(String(err.message || err), 'ComfyVideo');
-                }),
+                isComfyVideoMessage(message)
+                    ? 'ComfyVideo: quickly regenerate the selected gallery image'
+                    : 'ComfyVideo: quick generate whole-scene image for this message',
+                () => {
+                    const media = message.extra?.media;
+                    const selectedIndex = Number(message.extra?.media_index);
+                    const selectedMedia = Array.isArray(media)
+                        ? (media[selectedIndex] || media[media.length - 1])
+                        : null;
+                    const regenerationMedia = selectedMedia?.comfyVideo && !isVideoFormat(selectedMedia.type)
+                        ? selectedMedia
+                        : null;
+                    return generateSceneImage('scene', {
+                        targetMessage: message,
+                        regenerationMedia,
+                        // A gallery regeneration should honor the normal
+                        // prompt-preview preference; ordinary Quick Generate
+                        // remains a one-tap action.
+                        skipPromptConfirmation: !regenerationMedia,
+                    }).catch(err => {
+                        console.error(LOG, err);
+                        toastr.error(String(err.message || err), 'ComfyVideo');
+                    });
+                },
             );
             buttons.prepend(button);
         }

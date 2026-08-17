@@ -38,7 +38,7 @@ until you Generate or Cancel.
 Wand menu → **ComfyVideo** (or `/comfyvideo`) opens a floating panel (Pathweaver-style):
 
 - Portrait / landscape  
-- Video length presets: 5s / 8s / 10s at 24 FPS (120 / 192 / 240 frames)
+- Video length presets: 5s / 8s / 10s at 24 FPS (124 / 192 / 243 frames, H3 17k+5 grid)
 - Pick image and I2V workflows; edit all LLM instruction presets in Full settings
 - Choose Realistic, Western comic, or a saved custom image style
 - **Whole scene**, **Portrait**, **Interaction**, or **Environment** image actions
@@ -94,10 +94,20 @@ workflows** in Library backup to explicitly restore a deleted copy.
   CFG 1, zero negative conditioning, and accepts prompt, seed, width, and height
   placeholders. It requires a ComfyUI build with Krea 2 loader support; all
   workflow nodes are built in.
-- **MiniMax H3 I2V v2** uses the MiniMax H3 UNet, Qwen3-VL clip, video/audio
-  VAEs, built-in `ImageScale`, `MiniMaxH3ImageToVideo`, and video nodes. It
-  resizes its source image to the H3 dimensions before generation and accepts
-  image, prompt, seed, frames, FPS, width, and height placeholders.
+- **MiniMax H3 I2V Turbo** is the default I2V workflow. It uses the same H3
+  base files and `ImageScale` resize as v2, then applies
+  `minimax_h3_turbo_v4_step600_ema.safetensors` at strength 1.0 through
+  `MiniMaxH3TurboLoRA` and samples 8 `simple` steps with
+  `MiniMaxH3TurboSampler`. It accepts the same I2V placeholders. Required
+  extras: [ComfyUI-MiniMax-H3-Turbo](https://github.com/Larryvrh/ComfyUI-MiniMax-H3-Turbo)
+  and the [Turbo v4 600 EMA LoRA](https://huggingface.co/larryvrh/MiniMax-H3-Turbo-Lora).
+  Fresh installs select it automatically. Existing installs still on bundled
+  H3 I2V v2 are switched once; a custom or later I2V selection is left alone.
+- **MiniMax H3 I2V v2** remains as a fallback that does not need the Turbo
+  custom nodes. It uses the MiniMax H3 UNet, Qwen3-VL clip, video/audio VAEs,
+  built-in `ImageScale`, `MiniMaxH3ImageToVideo`, and video nodes. It samples
+  20 `res_multistep` / simple steps and accepts image, prompt, seed, frames,
+  FPS, width, and height placeholders.
 
 You can edit, duplicate, delete, or replace any workflow in the normal
 library. The committed assets include only the workflows supplied by the local

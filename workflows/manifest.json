@@ -32,12 +32,23 @@
       "optionalPlaceholders": []
     },
     {
+      "id": "builtin.video.minimax-h3-i2v-turbo",
+      "version": 1,
+      "name": "MiniMax H3 I2V Turbo",
+      "kind": "i2v",
+      "file": "video/minimax-h3-i2v-turbo.json",
+      "description": "Default MiniMax H3 I2V with Larryvrh Turbo v4 600 EMA LoRA, 8-step simple sampling, and source-still resize.",
+      "default": true,
+      "requiredPlaceholders": ["%image%", "%prompt%", "%seed%", "%frames%", "%fps%", "%width%", "%height%"],
+      "optionalPlaceholders": ["%negative_prompt%"]
+    },
+    {
       "id": "builtin.video.minimax-h3-i2v",
       "version": 2,
       "name": "MiniMax H3 I2V v2",
       "kind": "i2v",
       "file": "video/minimax-h3-i2v.json",
-      "description": "MiniMax H3 image-to-video workflow that resizes the uploaded source still to the requested H3 dimensions before conditioning.",
+      "description": "Fallback MiniMax H3 image-to-video workflow without Turbo LoRA. Uses 20 res_multistep steps.",
       "requiredPlaceholders": ["%image%", "%prompt%", "%seed%", "%frames%", "%fps%", "%width%", "%height%"],
       "optionalPlaceholders": ["%negative_prompt%"]
     }

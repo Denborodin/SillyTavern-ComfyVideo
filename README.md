@@ -20,7 +20,7 @@ Export / Import JSON under **Library backup**.
 Tuned for **natural language**:
 
 - **Image composition presets (Z-Image / Krea 2 / FLUX.2 Klein)** — Whole scene,
-  single-character Portrait, precise two-person Interaction, and wide
+  single-character Portrait, precise two- or three-person Interaction, and wide
   Environment prompts. They default to natural camera distance and perspective,
   avoiding close wide-angle and dramatic viewpoints unless the scene calls for
   them. Each remains editable in the prompt library.
@@ -41,6 +41,7 @@ Wand menu → **ComfyVideo** (or `/comfyvideo`) opens a floating panel (Pathweav
 - Video length presets: 5s / 8s / 10s at 24 FPS (124 / 192 / 243 frames, H3 17k+5 grid)
 - Pick image and I2V workflows; edit all LLM instruction presets in Full settings
 - Choose Realistic, Western comic, or a saved custom image style
+- Choose `Auto`, no characters, or an explicit one-to-three-character cast for the next image
 - **Whole scene**, **Portrait**, **Interaction**, or **Environment** image actions
 - **Generate video** from a selectable ComfyVideo still
 - Link to full extension settings  

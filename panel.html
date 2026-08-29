@@ -40,6 +40,28 @@
                 </div>
             </div>
 
+            <div class="cv_panel_section cv_cast_section" id="comfyvideo_panel_cast">
+                <div class="cv_panel_label">Characters</div>
+                <button type="button" class="cv_cast_toggle" id="comfyvideo_panel_cast_toggle"
+                    aria-haspopup="true" aria-expanded="false" aria-controls="comfyvideo_panel_cast_menu">
+                    <i class="fa-solid fa-users" aria-hidden="true"></i>
+                    <span class="cv_cast_summary" id="comfyvideo_panel_cast_summary">Auto</span>
+                    <i class="fa-solid fa-chevron-down cv_cast_chevron" aria-hidden="true"></i>
+                </button>
+                <div class="cv_cast_menu" id="comfyvideo_panel_cast_menu" hidden>
+                    <button type="button" class="cv_cast_command cv_cast_auto" id="comfyvideo_panel_cast_auto">
+                        <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
+                        <span>Auto from scene</span>
+                    </button>
+                    <div class="cv_cast_list" id="comfyvideo_panel_cast_list" role="group" aria-label="Characters in frame"></div>
+                    <div class="cv_cast_menu_footer">
+                        <button type="button" class="cv_link_btn" id="comfyvideo_panel_cast_none">None</button>
+                        <button type="button" class="cv_link_btn" id="comfyvideo_panel_cast_all">All</button>
+                    </div>
+                </div>
+                <p class="cv_panel_hint cv_cast_error" id="comfyvideo_panel_cast_error" role="alert" hidden></p>
+            </div>
+
             <details class="cv_panel_advanced">
                 <summary>Advanced options</summary>
                 <div class="cv_panel_section">
@@ -85,7 +107,7 @@
                     <button type="button" class="cv_action_btn cv_image_action_btn primary" data-prompt-kind="scene">
                         <i class="fa-solid fa-users"></i>
                         <span>Whole scene</span>
-                        <small>All characters</small>
+                        <small>Selected / inferred cast</small>
                     </button>
                     <button type="button" class="cv_action_btn cv_image_action_btn primary" data-prompt-kind="portrait">
                         <i class="fa-solid fa-user"></i>
@@ -95,7 +117,7 @@
                     <button type="button" class="cv_action_btn cv_image_action_btn primary" data-prompt-kind="interaction">
                         <i class="fa-solid fa-handshake"></i>
                         <span>Interaction</span>
-                        <small>Two-person action</small>
+                        <small>2–3 character action</small>
                     </button>
                     <button type="button" class="cv_action_btn cv_image_action_btn primary" data-prompt-kind="environment">
                         <i class="fa-solid fa-panorama"></i>

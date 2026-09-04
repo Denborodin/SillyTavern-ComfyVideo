@@ -10,6 +10,7 @@ import {
     isRoleplayMessage,
     messageSignature,
     resolveCastParticipants,
+    resolveChatMessage,
     validateCastSelection,
 } from '../lib/scene-context.js';
 
@@ -161,4 +162,50 @@ test('cast validation follows composition rules', () => {
     assert.equal(validateCastSelection(none, 'environment').valid, true);
     assert.equal(validateCastSelection(none, 'scene').valid, false);
     assert.equal(validateCastSelection({ mode: 'auto', participantIds: [] }, 'interaction').valid, true);
+});
+
+test('roleplay context anchors at the selected mid-chat message and excludes later lines', () => {
+    const chat = [
+        { name: 'Alva', mes: 'Alva opens the door.', original_avatar: 'Alva.png' },
+        { name: 'Robert', mes: 'Robert steps inside.', is_user: true },
+        { name: 'Stacy', mes: 'Stacy freezes mid-step.', original_avatar: 'Stacy.png' },
+        { name: 'Alva', mes: 'Alva pours tea later.', original_avatar: 'Alva.png' },
+        { name: 'Robert', mes: 'Robert thanks her later.', is_user: true },
+    ];
+    const target = chat[2];
+    const result = collectRoleplayContext(groupContext({ chat }), 5, target);
+    assert.equal(result.targetIndex, 2);
+    assert.equal(result.lastRoleplayIndex, 2);
+    assert.match(result.text, /Stacy freezes mid-step/);
+    assert.match(result.text, /Robert steps inside/);
+    assert.doesNotMatch(result.text, /pours tea later|thanks her later/);
+});
+
+test('resolveChatMessage prefers live mesid over a stale closed-over object', () => {
+    const chat = [
+        { name: 'Alva', mes: 'Old line.', send_date: '1' },
+        { name: 'Stacy', mes: 'Clicked line.', send_date: '2' },
+        { name: 'Robert', mes: 'Latest line.', is_user: true, send_date: '3' },
+    ];
+    const stale = { name: 'Alva', mes: 'Old line.', send_date: '1' };
+    const resolved = resolveChatMessage(chat, { id: 1, message: stale });
+    assert.equal(resolved.id, 1);
+    assert.equal(resolved.message.mes, 'Clicked line.');
+});
+
+test('resolveChatMessage can recover a replaced object via signature', () => {
+    const original = { name: 'Alva', mes: 'She waits.', send_date: '9' };
+    const replacement = { name: 'Alva', mes: 'She waits.', send_date: '9' };
+    const chat = [
+        { name: 'Robert', mes: 'Earlier.', is_user: true, send_date: '8' },
+        replacement,
+        { name: 'Stacy', mes: 'Later.', send_date: '10' },
+    ];
+    const resolved = resolveChatMessage(chat, {
+        id: 99,
+        message: original,
+        signature: messageSignature(original),
+    });
+    assert.equal(resolved.id, 1);
+    assert.equal(resolved.message, replacement);
 });

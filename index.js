@@ -20,6 +20,7 @@ import { SlashCommandParser } from '../../../slash-commands/SlashCommandParser.j
 import { SlashCommand } from '../../../slash-commands/SlashCommand.js';
 import { callGenericPopup, Popup, POPUP_RESULT, POPUP_TYPE } from '../../../popup.js';
 import { ConnectionManagerRequestService } from '../../shared.js';
+import { user_avatar } from '../../../personas.js';
 
 import { createComfyClient } from './lib/comfy-client.js';
 import {
@@ -33,10 +34,18 @@ import {
 import { createPromptBuilder } from './lib/prompt-builder.js';
 import {
     attachGeneratedMedia,
+    getMessageImageSource,
     getMessageImageUrl,
     isComfyVideoMessage,
     isVideoFormat,
 } from './lib/media.js';
+import {
+    findLastRoleplayMessage,
+    isRoleplayMessage,
+    messageSignature,
+    normalizeCastSelection,
+    validateCastSelection,
+} from './lib/scene-context.js';
 import { showStatus, newClientId, isAbortError } from './lib/status-ui.js';
 import {
     DEFAULT_IMAGE_PROMPT_TEMPLATE,
@@ -209,13 +218,44 @@ function resolveSeed(settings) {
     return Math.floor(Math.random() * 2 ** 32);
 }
 
-function resolveVideoDimensions(settings, message) {
-    const width = Number(message?.extra?.comfyVideo?.width);
-    const height = Number(message?.extra?.comfyVideo?.height);
+function resolveVideoDimensions(settings, source) {
+    const width = Number(source?.meta?.width);
+    const height = Number(source?.meta?.height);
     if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
         return resolveDimensions(width >= height ? 'landscape' : 'portrait');
     }
     return resolveDimensions(settings.resolution);
+}
+
+function captureContextIdentity(context) {
+    return {
+        chatId: typeof context.getCurrentChatId === 'function' ? context.getCurrentChatId() : null,
+        groupId: context.groupId ?? null,
+        characterId: context.characterId ?? null,
+    };
+}
+
+function assertGenerationSource(identity, sourceMessage, sourceSignature, requireLatestRoleplay = false) {
+    const current = getContext();
+    const currentIdentity = captureContextIdentity(current);
+    const sameCharacter = identity.groupId != null
+        ? true
+        : String(currentIdentity.characterId ?? '') === String(identity.characterId ?? '');
+    const sameChat = currentIdentity.chatId === identity.chatId
+        && String(currentIdentity.groupId ?? '') === String(identity.groupId ?? '')
+        && sameCharacter;
+    if (!sameChat) throw new Error('The active chat changed before generation completed. Result was not attached.');
+    if (!sourceMessage) return current;
+    if (!current.chat?.includes(sourceMessage)) {
+        throw new Error('The source message was deleted before generation completed. Result was not attached.');
+    }
+    if (messageSignature(sourceMessage) !== sourceSignature) {
+        throw new Error('The source message changed or was swiped before generation completed. Result was not attached.');
+    }
+    if (requireLatestRoleplay && findLastRoleplayMessage(current.chat) !== sourceMessage) {
+        throw new Error('The roleplay scene changed before generation completed. Result was not attached.');
+    }
+    return current;
 }
 
 function resolveVisualStyle(settings) {
@@ -881,6 +921,7 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
         targetMessage = null,
         skipPromptConfirmation = false,
         regenerationMedia = null,
+        castSelection = null,
     } = opts;
     if (!st.enabled) {
         toastr.warning('ComfyVideo is disabled in settings.');
@@ -900,11 +941,38 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
     }
 
     const ctx = getContext();
-    const sourceChatId = typeof ctx.getCurrentChatId === 'function' ? ctx.getCurrentChatId() : null;
+    const contextIdentity = captureContextIdentity(ctx);
+    const sourceChatId = contextIdentity.chatId;
     if (targetMessage && !ctx.chat?.includes(targetMessage)) {
         toastr.error('The selected message is no longer available in this chat.', 'ComfyVideo');
         return;
     }
+    const sourceMessage = targetMessage || findLastRoleplayMessage(ctx.chat);
+    const sourceSignature = messageSignature(sourceMessage);
+    const requireLatestRoleplay = !targetMessage;
+    const requestedCast = regenerationMedia
+        ? normalizeCastSelection({
+            mode: savedRecipe?.castSelectionMode,
+            participantIds: savedRecipe?.castParticipantIds,
+        })
+        : normalizeCastSelection(castSelection);
+    const castValidation = validateCastSelection(requestedCast, savedRecipe?.imagePromptKind || promptKind);
+    if (!castValidation.valid) {
+        toastr.error(castValidation.message, 'ComfyVideo');
+        return;
+    }
+    const availableCast = prompts.getCastParticipants(st, sourceMessage);
+    const recipeCast = requestedCast.mode === 'auto'
+        ? availableCast
+        : requestedCast.mode === 'explicit'
+            ? requestedCast.participantIds.map(id => availableCast.find(item => item.id === id)).filter(Boolean)
+            : [];
+    const recipeCastIds = regenerationMedia && Array.isArray(savedRecipe?.castParticipantIds)
+        ? [...savedRecipe.castParticipantIds]
+        : recipeCast.map(item => item.id);
+    const recipeCastNames = regenerationMedia && Array.isArray(savedRecipe?.castParticipantNames)
+        ? [...savedRecipe.castParticipantNames]
+        : recipeCast.map(item => item.label);
 
     const promptVariant = resolveImagePromptVariant(st, savedRecipe?.imagePromptKind || promptKind);
     st.activeImagePromptId = promptVariant.id || st.activeImagePromptId;
@@ -939,7 +1007,8 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
             ? String(savedRecipe?.imagePrompt || regenerationMedia.title || '').trim()
             : await prompts.buildImagePrompt(st, {
                 signal: status.signal,
-                targetMessage,
+                targetMessage: sourceMessage,
+                castSelection: requestedCast,
             });
         if (!regenerationMedia) imagePrompt = appendVisualStyle(imagePrompt, st);
         if (regenerationMedia && !imagePrompt) {
@@ -966,6 +1035,8 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
             status.setMessage('Generating image in ComfyUI…');
         }
 
+        assertGenerationSource(contextIdentity, sourceMessage, sourceSignature, requireLatestRoleplay);
+
         const clientId = newClientId();
         status.watchComfy(st.comfyUrl, clientId);
         status.setProgress(null);
@@ -985,11 +1056,20 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
         status.setMessage('Saving…');
         status.setProgress(100);
 
+        const currentContext = assertGenerationSource(
+            contextIdentity,
+            sourceMessage,
+            sourceSignature,
+            requireLatestRoleplay,
+        );
+
         const charName = ctx.name2 || 'ComfyVideo';
         const path = await saveBase64AsFile(result.data, charName, `ComfyVideo_${humanizedDateTime()}`, result.format);
 
+        assertGenerationSource(contextIdentity, sourceMessage, sourceSignature, requireLatestRoleplay);
+
         await attachGeneratedMedia({
-            context: ctx,
+            context: currentContext,
             url: path,
             format: result.format,
             prompt: imagePrompt,
@@ -1005,15 +1085,20 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
                     || '',
                 seed,
                 step: 'image',
-                sourceMessageId: targetMessage ? ctx.chat.indexOf(targetMessage) : undefined,
+                sourceMessageId: sourceMessage ? currentContext.chat.indexOf(sourceMessage) : undefined,
+                castSelectionMode: requestedCast.mode,
+                castParticipantIds: recipeCastIds,
+                castParticipantNames: recipeCastNames,
                 width: dims.width,
                 height: dims.height,
             },
             attachMode: regenerationMedia
                 ? 'same'
-                : (targetMessage ? 'after' : (st.attachImageMode === 'new' ? 'new' : 'last')),
-            insertAfterMessage: targetMessage,
+                : (targetMessage ? 'after' : (st.attachImageMode === 'new' ? 'new' : (sourceMessage ? 'same' : 'new'))),
+            insertAfterMessage: sourceMessage,
             sourceChatId,
+            sourceMessageSignature: sourceSignature,
+            sourceMustBeLatestRoleplay: requireLatestRoleplay,
             appendMediaToMessage,
             eventSource,
             event_types,
@@ -1056,17 +1141,19 @@ async function generateVideoForMessage(messageId) {
     }
 
     const ctx = getContext();
-    const sourceChatId = typeof ctx.getCurrentChatId === 'function' ? ctx.getCurrentChatId() : null;
+    const contextIdentity = captureContextIdentity(ctx);
+    const sourceChatId = contextIdentity.chatId;
     const message = ctx.chat[messageId];
     if (!message) {
         toastr.error('Message not found.');
         return;
     }
-    const imageUrl = getMessageImageUrl(message);
-    if (!imageUrl) {
+    const imageSource = getMessageImageSource(message);
+    if (!imageSource) {
         toastr.error('No image on this message to animate.');
         return;
     }
+    const sourceSignature = messageSignature(message);
 
     const alignedFrames = alignH3FrameCount(st.frames);
     if (alignedFrames !== Number(st.frames)) {
@@ -1077,10 +1164,10 @@ async function generateVideoForMessage(messageId) {
     }
 
     busy = true;
-    const dims = resolveVideoDimensions(st, message);
+    const dims = resolveVideoDimensions(st, imageSource);
     /** @type {ReturnType<typeof showStatus>|null} */
     let status = null;
-    const sourceImagePrompt = message.extra?.comfyVideo?.imagePrompt || '';
+    const sourceImagePrompt = imageSource.meta?.imagePrompt || '';
 
     try {
         status = showStatus({
@@ -1112,7 +1199,8 @@ async function generateVideoForMessage(messageId) {
             status.setMessage('Uploading source image…');
         }
 
-        const blob = await comfy.fetchImageBlob(imageUrl, status.signal);
+        assertGenerationSource(contextIdentity, message, sourceSignature);
+        const blob = await comfy.fetchImageBlob(imageSource.url, status.signal);
         const uploaded = await comfy.uploadImage(st.comfyUrl, blob, `comfyvideo_${Date.now()}.png`, status.signal);
         const imageName = uploaded.subfolder ? `${uploaded.subfolder}/${uploaded.name}` : uploaded.name;
 
@@ -1146,6 +1234,8 @@ async function generateVideoForMessage(messageId) {
         status.setMessage('Saving…');
         status.setProgress(100);
 
+        const currentContext = assertGenerationSource(contextIdentity, message, sourceSignature);
+
         const path = await saveBase64AsFile(
             result.data,
             ctx.name2 || 'ComfyVideo',
@@ -1153,11 +1243,30 @@ async function generateVideoForMessage(messageId) {
             result.format,
         );
 
+        assertGenerationSource(contextIdentity, message, sourceSignature);
+
         const meta = {
             motionPrompt,
             seed,
             step: 'i2v',
-            sourceMessageId: ctx.chat.indexOf(message),
+            sourceMessageId: currentContext.chat.indexOf(message),
+            sourceMediaIndex: imageSource.mediaIndex,
+            sourceImageUrl: imageSource.url,
+            sourceImagePrompt,
+            sourceImageWidth: imageSource.meta?.width,
+            sourceImageHeight: imageSource.meta?.height,
+            sourceImageRecipe: {
+                imagePromptKind: imageSource.meta?.imagePromptKind,
+                imagePromptPresetId: imageSource.meta?.imagePromptPresetId,
+                imageWorkflowId: imageSource.meta?.imageWorkflowId,
+                seed: imageSource.meta?.seed,
+                castSelectionMode: imageSource.meta?.castSelectionMode,
+                castParticipantIds: imageSource.meta?.castParticipantIds,
+                castParticipantNames: imageSource.meta?.castParticipantNames,
+            },
+            i2vWorkflow: st.i2vWorkflow,
+            i2vWorkflowId: st.activeI2vWorkflowId,
+            i2vWorkflowName: findItem(st.libraries.i2vWorkflows, st.activeI2vWorkflowId)?.name || '',
             frames: st.frames,
             fps: st.fps,
             width: dims.width,
@@ -1165,7 +1274,7 @@ async function generateVideoForMessage(messageId) {
         };
 
         await attachGeneratedMedia({
-            context: ctx,
+            context: currentContext,
             url: path,
             format: result.format,
             prompt: motionPrompt,
@@ -1173,6 +1282,7 @@ async function generateVideoForMessage(messageId) {
             attachMode: 'after',
             insertAfterMessage: message,
             sourceChatId,
+            sourceMessageSignature: sourceSignature,
             appendMediaToMessage,
             eventSource,
             event_types,
@@ -1225,8 +1335,13 @@ function injectMessageActions() {
         if (!message) return;
         const buttons = mesEl.querySelector('.mes_buttons');
         if (!buttons) return;
+        const roleplayMessage = isRoleplayMessage(message);
+        const imageSource = getMessageImageSource(message);
+        const canRegenerate = Boolean(imageSource?.meta?.imagePrompt);
+        if (!roleplayMessage) buttons.querySelector('.comfyvideo-message-panel-btn')?.remove();
+        if (!roleplayMessage && !canRegenerate) buttons.querySelector('.comfyvideo-quick-gen-btn')?.remove();
 
-        if (!buttons.querySelector('.comfyvideo-message-panel-btn')) {
+        if (roleplayMessage && !buttons.querySelector('.comfyvideo-message-panel-btn')) {
             const button = createMessageAction(
                 'comfyvideo-message-panel-btn',
                 'fa-solid fa-clapperboard',
@@ -1239,21 +1354,17 @@ function injectMessageActions() {
             buttons.prepend(button);
         }
 
-        if (!buttons.querySelector('.comfyvideo-quick-gen-btn')) {
+        if ((roleplayMessage || canRegenerate) && !buttons.querySelector('.comfyvideo-quick-gen-btn')) {
             const button = createMessageAction(
                 'comfyvideo-quick-gen-btn',
                 'fa-solid fa-bolt',
-                isComfyVideoMessage(message)
+                canRegenerate
                     ? 'ComfyVideo: quickly regenerate the selected gallery image'
                     : 'ComfyVideo: quick generate whole-scene image for this message',
                 () => {
-                    const media = message.extra?.media;
-                    const selectedIndex = Number(message.extra?.media_index);
-                    const selectedMedia = Array.isArray(media)
-                        ? (media[selectedIndex] || media[media.length - 1])
-                        : null;
-                    const regenerationMedia = selectedMedia?.comfyVideo && !isVideoFormat(selectedMedia.type)
-                        ? selectedMedia
+                    const selected = getMessageImageSource(message);
+                    const regenerationMedia = selected?.meta?.imagePrompt
+                        ? { ...(selected.media || {}), comfyVideo: selected.meta }
                         : null;
                     return generateSceneImage('scene', {
                         targetMessage: message,
@@ -1271,7 +1382,18 @@ function injectMessageActions() {
             buttons.prepend(button);
         }
 
-        if (!isComfyVideoMessage(message) || !getMessageImageUrl(message)) return;
+        const existingQuick = buttons.querySelector('.comfyvideo-quick-gen-btn');
+        if (existingQuick) {
+            existingQuick.title = canRegenerate
+                ? 'ComfyVideo: quickly regenerate the selected gallery image'
+                : 'ComfyVideo: quick generate whole-scene image for this message';
+            existingQuick.setAttribute('aria-label', existingQuick.title);
+        }
+
+        if (!isComfyVideoMessage(message) || !imageSource) {
+            buttons.querySelector('.comfyvideo-i2v-btn')?.remove();
+            return;
+        }
         if (buttons.querySelector('.comfyvideo-i2v-btn')) return;
         const button = createMessageAction(
             'comfyvideo-i2v-btn',
@@ -1327,7 +1449,17 @@ jQuery(async () => {
         generateVideoForMessage,
         getContext,
         isComfyVideoMessage,
+        getMessageImageSource,
         getMessageImageUrl,
+        getCastParticipants: targetMessage => prompts.getCastParticipants(getSettings(), targetMessage)
+            .map(participant => participant.id === 'user' && !participant.avatarUrl
+                ? {
+                    ...participant,
+                    avatarUrl: user_avatar
+                        ? getContext().getThumbnailUrl?.('persona', user_avatar) || ''
+                        : '',
+                }
+                : participant),
         extName: EXT_NAME,
     });
     await loadSettingsHtml();

@@ -61,7 +61,7 @@ import { createPanel } from './lib/panel.js';
 
 const MODULE = 'ComfyVideo';
 const LOG = '[ComfyVideo]';
-const EXT_NAME = 'ComfyVideo';
+const EXT_NAME = new URL('.', import.meta.url).pathname.split('/').filter(Boolean).pop();
 
 const IMAGE_PLACEHOLDERS = [
     'prompt', 'negative_prompt', 'seed', 'width', 'height',

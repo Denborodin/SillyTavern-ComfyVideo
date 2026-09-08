@@ -44,6 +44,7 @@ import {
     isRoleplayMessage,
     messageSignature,
     normalizeCastSelection,
+    resolveChatMessage,
     validateCastSelection,
 } from './lib/scene-context.js';
 import { showStatus, newClientId, isAbortError } from './lib/status-ui.js';
@@ -82,7 +83,7 @@ const I2V_PLACEHOLDERS = [
 
 const IMAGE_STYLE_PROMPTS = Object.freeze({
     photo: 'Photorealistic cinematic imagery, natural adult anatomy, credible skin texture, realistic practical lighting, detailed environment, coherent depth and perspective.',
-    digital_art: 'Realistic high-detail digital art, believable adult anatomy, polished painted rendering, nuanced material texture, cinematic lighting, coherent depth and perspective.',
+    digital_art: 'Realistic hand-painted digital illustration with clear artistic brushwork, matte natural materials, rich but restrained color, believable adult anatomy, expressive lighting, and coherent depth and perspective.',
     western_comic: 'Detailed Western graphic-novel art, realistic adult proportions, expressive natural faces, controlled ink contours, layered painted shading, textured brushwork, cinematic panel composition, no anime or manga styling.',
 });
 
@@ -919,6 +920,7 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
     const st = getSettings();
     const {
         targetMessage = null,
+        sourceMessageId = null,
         skipPromptConfirmation = false,
         regenerationMedia = null,
         castSelection = null,
@@ -931,8 +933,27 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
         toastr.info('ComfyVideo is already working.');
         return;
     }
+
+    const ctx = getContext();
+    const contextIdentity = captureContextIdentity(ctx);
+    const sourceChatId = contextIdentity.chatId;
+    const clickedSpecificMessage = targetMessage != null || sourceMessageId != null;
+    const resolved = clickedSpecificMessage
+        ? resolveChatMessage(ctx.chat, {
+            id: sourceMessageId,
+            message: targetMessage,
+            signature: targetMessage ? messageSignature(targetMessage) : null,
+        })
+        : null;
+    if (clickedSpecificMessage && !resolved) {
+        toastr.error('The selected message is no longer available in this chat.', 'ComfyVideo');
+        return;
+    }
+    const sourceMessage = resolved?.message || findLastRoleplayMessage(ctx.chat);
+    const resolvedSourceId = resolved?.id ?? (sourceMessage ? ctx.chat.indexOf(sourceMessage) : -1);
+
     const savedRecipe = regenerationMedia?.comfyVideo
-        || targetMessage?.extra?.comfyVideo
+        || sourceMessage?.extra?.comfyVideo
         || null;
     const imageWorkflow = String(savedRecipe?.imageWorkflow || st.imageWorkflow || '').trim();
     if (!imageWorkflow) {
@@ -940,16 +961,8 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
         return;
     }
 
-    const ctx = getContext();
-    const contextIdentity = captureContextIdentity(ctx);
-    const sourceChatId = contextIdentity.chatId;
-    if (targetMessage && !ctx.chat?.includes(targetMessage)) {
-        toastr.error('The selected message is no longer available in this chat.', 'ComfyVideo');
-        return;
-    }
-    const sourceMessage = targetMessage || findLastRoleplayMessage(ctx.chat);
     const sourceSignature = messageSignature(sourceMessage);
-    const requireLatestRoleplay = !targetMessage;
+    const requireLatestRoleplay = !clickedSpecificMessage;
     const requestedCast = regenerationMedia
         ? normalizeCastSelection({
             mode: savedRecipe?.castSelectionMode,
@@ -1085,7 +1098,9 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
                     || '',
                 seed,
                 step: 'image',
-                sourceMessageId: sourceMessage ? currentContext.chat.indexOf(sourceMessage) : undefined,
+                sourceMessageId: resolvedSourceId >= 0
+                    ? resolvedSourceId
+                    : (sourceMessage ? currentContext.chat.indexOf(sourceMessage) : undefined),
                 castSelectionMode: requestedCast.mode,
                 castParticipantIds: recipeCastIds,
                 castParticipantNames: recipeCastNames,
@@ -1094,7 +1109,7 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
             },
             attachMode: regenerationMedia
                 ? 'same'
-                : (targetMessage ? 'after' : (st.attachImageMode === 'new' ? 'new' : (sourceMessage ? 'same' : 'new'))),
+                : (clickedSpecificMessage ? 'after' : (st.attachImageMode === 'new' ? 'new' : (sourceMessage ? 'same' : 'new'))),
             insertAfterMessage: sourceMessage,
             sourceChatId,
             sourceMessageSignature: sourceSignature,
@@ -1304,6 +1319,20 @@ async function generateVideoForMessage(messageId) {
     }
 }
 
+/**
+ * Resolve the chat message for a message-action button from the live DOM mesid.
+ * Never trust a closed-over message object from an earlier inject pass.
+ * @param {HTMLElement} button
+ * @returns {{ message: any, id: number }|null}
+ */
+function resolveMessageFromActionButton(button) {
+    const mesEl = button?.closest?.('.mes');
+    const id = Number(mesEl?.getAttribute('mesid'));
+    if (!Number.isInteger(id) || id < 0) return null;
+    const chat = getContext().chat || [];
+    return resolveChatMessage(chat, { id });
+}
+
 function createMessageAction(className, iconClass, title, onClick) {
     const button = document.createElement('div');
     button.className = `mes_button ${className} ${iconClass} interactable`;
@@ -1314,13 +1343,28 @@ function createMessageAction(className, iconClass, title, onClick) {
     button.addEventListener('click', e => {
         e.preventDefault();
         e.stopPropagation();
-        onClick();
+        onClick(button);
     });
     button.addEventListener('keydown', e => {
         if (e.key !== 'Enter' && e.key !== ' ') return;
         e.preventDefault();
         button.click();
     });
+    return button;
+}
+
+function ensureMessageAction(buttons, className, iconClass, title, onClick) {
+    let button = buttons.querySelector(`.${className}`);
+    if (button) {
+        button.title = title;
+        button.setAttribute('aria-label', title);
+        // Replace node so stale click closures from prior injects cannot survive.
+        const fresh = createMessageAction(className, iconClass, title, onClick);
+        button.replaceWith(fresh);
+        return fresh;
+    }
+    button = createMessageAction(className, iconClass, title, onClick);
+    buttons.prepend(button);
     return button;
 }
 
@@ -1341,33 +1385,50 @@ function injectMessageActions() {
         if (!roleplayMessage) buttons.querySelector('.comfyvideo-message-panel-btn')?.remove();
         if (!roleplayMessage && !canRegenerate) buttons.querySelector('.comfyvideo-quick-gen-btn')?.remove();
 
-        if (roleplayMessage && !buttons.querySelector('.comfyvideo-message-panel-btn')) {
-            const button = createMessageAction(
+        if (roleplayMessage) {
+            ensureMessageAction(
+                buttons,
                 'comfyvideo-message-panel-btn',
                 'fa-solid fa-clapperboard',
                 'ComfyVideo: open image and video generator for this message',
-                () => panel?.open({ targetMessage: message }).catch(err => {
-                    console.error(LOG, err);
-                    toastr.error(String(err.message || err), 'ComfyVideo');
-                }),
+                btn => {
+                    const resolved = resolveMessageFromActionButton(btn);
+                    if (!resolved) {
+                        toastr.error('Could not resolve this chat message.', 'ComfyVideo');
+                        return;
+                    }
+                    panel?.open({
+                        targetMessage: resolved.message,
+                        sourceMessageId: resolved.id,
+                    }).catch(err => {
+                        console.error(LOG, err);
+                        toastr.error(String(err.message || err), 'ComfyVideo');
+                    });
+                },
             );
-            buttons.prepend(button);
         }
 
-        if ((roleplayMessage || canRegenerate) && !buttons.querySelector('.comfyvideo-quick-gen-btn')) {
-            const button = createMessageAction(
+        if (roleplayMessage || canRegenerate) {
+            ensureMessageAction(
+                buttons,
                 'comfyvideo-quick-gen-btn',
                 'fa-solid fa-bolt',
                 canRegenerate
                     ? 'ComfyVideo: quickly regenerate the selected gallery image'
                     : 'ComfyVideo: quick generate whole-scene image for this message',
-                () => {
-                    const selected = getMessageImageSource(message);
+                btn => {
+                    const resolved = resolveMessageFromActionButton(btn);
+                    if (!resolved) {
+                        toastr.error('Could not resolve this chat message.', 'ComfyVideo');
+                        return;
+                    }
+                    const selected = getMessageImageSource(resolved.message);
                     const regenerationMedia = selected?.meta?.imagePrompt
                         ? { ...(selected.media || {}), comfyVideo: selected.meta }
                         : null;
                     return generateSceneImage('scene', {
-                        targetMessage: message,
+                        targetMessage: resolved.message,
+                        sourceMessageId: resolved.id,
                         regenerationMedia,
                         // A gallery regeneration should honor the normal
                         // prompt-preview preference; ordinary Quick Generate
@@ -1379,32 +1440,29 @@ function injectMessageActions() {
                     });
                 },
             );
-            buttons.prepend(button);
-        }
-
-        const existingQuick = buttons.querySelector('.comfyvideo-quick-gen-btn');
-        if (existingQuick) {
-            existingQuick.title = canRegenerate
-                ? 'ComfyVideo: quickly regenerate the selected gallery image'
-                : 'ComfyVideo: quick generate whole-scene image for this message';
-            existingQuick.setAttribute('aria-label', existingQuick.title);
         }
 
         if (!isComfyVideoMessage(message) || !imageSource) {
             buttons.querySelector('.comfyvideo-i2v-btn')?.remove();
             return;
         }
-        if (buttons.querySelector('.comfyvideo-i2v-btn')) return;
-        const button = createMessageAction(
+        ensureMessageAction(
+            buttons,
             'comfyvideo-i2v-btn',
             'fa-solid fa-film',
             'ComfyVideo: Generate Video (I2V)',
-            () => generateVideoForMessage(id).catch(err => {
-                console.error(LOG, err);
-                toastr.error(String(err.message || err), 'ComfyVideo');
-            }),
+            btn => {
+                const resolved = resolveMessageFromActionButton(btn);
+                if (!resolved) {
+                    toastr.error('Could not resolve this chat message.', 'ComfyVideo');
+                    return;
+                }
+                generateVideoForMessage(resolved.id).catch(err => {
+                    console.error(LOG, err);
+                    toastr.error(String(err.message || err), 'ComfyVideo');
+                });
+            },
         );
-        buttons.prepend(button);
     });
 }
 

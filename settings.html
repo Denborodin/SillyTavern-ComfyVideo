@@ -62,7 +62,7 @@
             <label for="comfyvideo_prompt_mode">Mode</label>
             <select id="comfyvideo_prompt_mode" class="text_pole">
                 <option value="profile">Connection profile (background)</option>
-                <option value="quiet">Quiet gen (current main model)</option>
+                <option value="quiet">Current model (isolated context)</option>
             </select>
             <label for="comfyvideo_llm_profile">Connection profile</label>
             <select id="comfyvideo_llm_profile" class="text_pole"></select>
@@ -73,6 +73,7 @@
                 <span>Use completion preset from profile</span>
             </label>
             <p class="comfyvideo-hint">Off by default (avoids RP preset junk in prompts). Image and video motion prompts always use the LLM.</p>
+            <p class="comfyvideo-hint">Current-model mode sends only the selected reference context and supports Chat Completion and Text Completion connections. Use a connection profile for other setups.</p>
         </div>
 
         <!-- Image workflow library -->

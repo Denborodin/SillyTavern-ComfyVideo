@@ -48,6 +48,30 @@ Wand menu → **ComfyVideo** (or `/comfyvideo`) opens a floating panel (Pathweav
 
 Per-message film button still works for I2V on a specific message.
 
+Image generation from a message's quickbar uses that message as its reference
+and inserts the result immediately after it. The global ComfyVideo menu uses
+the latest roleplay message and follows the attachment setting (New message
+appends at the end). Quick Regen adds another image to the existing gallery.
+
+The panel shows the reference message number, actual output dimensions, and
+attachment destination. References survive earlier message insertions; changing
+chats or deleting/editing the reference requires reopening the panel.
+
+Current-model mode (the saved `quiet` setting) sends only the selected context
+through SillyTavern's cancellable Chat Completion or Text Completion request
+service. Other backends require a connection profile. It no longer adds the
+host's full chat history. Each job snapshots extension settings when started.
+
+Fresh images use the current workflow, size, and composition. Quick Regen uses
+the selected image's saved recipe. A selected custom image instruction is used
+for its composition; legacy custom presets without a composition apply to all
+image actions. Save as preserves the original preset's composition.
+
+Completed media is saved before chat attachment. If the chat changes or saving
+the attachment fails, open **Saved results** in the panel to open the saved media
+and copy its prompt, even after reloading. Successfully attached results remain
+in their chat and are removed from this recovery list.
+
 ## Setup
 
 1. ComfyUI + CORS for upload/WS  

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ComfyVideo isolated panel check</title>
+<link rel="stylesheet" href="../style.css">
+<style>
+    body { margin: 0; background: #191919; color: #eee; font: 16px Arial, sans-serif; }
+    * { box-sizing: border-box; }
+    button, input, select, textarea { font: inherit; }
+    select, input, textarea { color: #eee; background: #333; border: 1px solid #666; }
+    .text_pole { padding: 6px; max-width: 100%; }
+    #result { padding: 16px; overflow-wrap: anywhere; }
+</style>
+<button id="open">Open reference #26</button>
+<p id="result">This isolated fixture never calls an LLM or ComfyUI and never saves a real chat.</p>
+<script type="module">
+    import { createPanel } from '../lib/panel.js';
+    const chat = Array.from({length: 29}, (_, i) => ({ name: 'Character', mes: `Message ${i}` }));
+    const settings = { resolution: 'landscape', imageQuality: 'high', frames: 124, fps: 24,
+        imageStylePreset: 'digital_art', motionIntensity: 'normal', attachImageMode: 'new', libraries: {} };
+    const report = message => { document.querySelector('#result').textContent = message; };
+    window.toastr = { error: report, warning: report };
+    const panel = createPanel({
+        extName: location.pathname.split('/').at(-3),
+        getContext: () => ({ chat, getCurrentChatId: () => 'preview' }),
+        getSettings: () => settings, saveSettings() {},
+        getCastParticipants: () => [],
+        getMessageImageUrl: message => message === chat[26] ? '/img/ai4.png' : null,
+        getMessageImageSource: () => ({ meta: { width: 1728, height: 1296 } }),
+        generateSceneImage: async (_, opts) => report(`Image reference #${opts.sourceMessageId}`),
+        generateVideoForMessage: async id => report(`Video reference #${id}`),
+        showSavedResults: async () => report('Recovery panel entry point clicked'),
+    });
+    const open = () => panel.open({targetMessage: chat[26], sourceMessageId: 26});
+    document.querySelector('#open').addEventListener('click', open);
+    await open();
+</script>
+</html>

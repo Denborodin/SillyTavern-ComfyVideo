@@ -8,7 +8,6 @@ import {
     appendMediaToMessage,
     event_types,
     eventSource,
-    generateQuietPrompt,
     getRequestHeaders,
     saveSettingsDebounced,
     systemUserName,
@@ -21,6 +20,9 @@ import { SlashCommand } from '../../../slash-commands/SlashCommand.js';
 import { callGenericPopup, Popup, POPUP_RESULT, POPUP_TYPE } from '../../../popup.js';
 import { ConnectionManagerRequestService } from '../../shared.js';
 import { user_avatar } from '../../../personas.js';
+import { createGenerationParameters, getChatCompletionModel } from '../../../openai.js';
+import { createTextGenGenerationData, getTextGenModel } from '../../../textgen-settings.js';
+import { createCurrentModelRequest } from './lib/current-model.js';
 
 import { createComfyClient } from './lib/comfy-client.js';
 import {
@@ -68,6 +70,7 @@ import {
 } from './lib/library.js';
 import { loadBundledWorkflows, seedBundledWorkflows } from './lib/bundled-workflows.js';
 import { createPanel } from './lib/panel.js';
+import { createResultStore } from './lib/saved-results.js';
 
 const MODULE = 'ComfyVideo';
 const LOG = '[ComfyVideo]';
@@ -117,6 +120,7 @@ const defaultSettings = Object.freeze({
     customImageStyle: '',
     installedBundledWorkflowVersions: {},
     appliedBundledDefaults: {},
+    savedResults: [],
 
     attachImageMode: 'last',
 
@@ -139,6 +143,47 @@ let prompts;
 /** @type {ReturnType<typeof createPanel>|null} */
 let panel = null;
 let busy = false;
+const resultStore = createResultStore({
+    getSettings,
+    saveSettings,
+    newId: newClientId,
+    saveFile: (result, details) => saveBase64AsFile(result.data, details.character,
+        `ComfyVideo_${details.kind}_${humanizedDateTime()}_${newClientId()}`, result.format),
+});
+
+async function showSavedResults() {
+    const content = document.createElement('div');
+    content.className = 'comfyvideo-saved-results';
+    const heading = document.createElement('h3');
+    heading.textContent = 'Saved results awaiting attachment';
+    content.append(heading);
+    const entries = getSettings().savedResults || [];
+    if (!entries.length) content.append('No unattached results. Successfully attached media stays in its chat.');
+    for (const entry of entries) {
+        const section = document.createElement('div');
+        const label = document.createElement('p');
+        label.textContent = `${entry.character} · ${entry.chatId || 'Chat'} · ${entry.kind} · ${entry.savedAt}`;
+        const link = document.createElement('a');
+        // Only local ST media paths are accepted from persisted settings.
+        if (typeof entry.url !== 'string' || !entry.url.startsWith('/user/')) continue;
+        link.href = entry.url;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.textContent = 'Open saved media';
+        const prompt = document.createElement('textarea');
+        prompt.className = 'text_pole';
+        prompt.readOnly = true;
+        prompt.value = entry.prompt || '';
+        section.append(label, link, prompt);
+        content.append(section);
+    }
+    await callGenericPopup(content, POPUP_TYPE.TEXT, '', { wide: true });
+}
+
+function notifySavedResult(entry) {
+    toastr.warning('Generation was saved but could not be attached. Open ComfyVideo → Saved results to recover it.',
+        'ComfyVideo', { timeOut: 0, extendedTimeOut: 0, onclick: () => void showSavedResults() });
+}
 
 function getSettings() {
     if (!extension_settings[MODULE]) {
@@ -439,7 +484,9 @@ function bindSettingsUi() {
 
     document.getElementById('comfyvideo_test_btn')?.addEventListener('click', onTestConnection);
     document.getElementById('comfyvideo_reset_btn')?.addEventListener('click', () => {
+        const savedResults = getSettings().savedResults;
         extension_settings[MODULE] = structuredClone(defaultSettings);
+        extension_settings[MODULE].savedResults = savedResults;
         ensureLibraries(extension_settings[MODULE]);
         saveSettings();
         applySettingsToUi();
@@ -637,6 +684,7 @@ function wireWorkflowLibrary(cfg) {
         if (!ok) return;
         removeItem(st.libraries[cfg.listKey], id);
         st[cfg.activeIdKey] = '';
+        st[cfg.fieldKey] = '';
         saveSettings();
         refreshLibraryDropdowns();
     });
@@ -688,6 +736,8 @@ function wirePromptLibrary(cfg) {
         const n = await callGenericPopup('Save instructions as:', POPUP_TYPE.INPUT, '');
         if (!n) return;
         const created = addItem(st.libraries[cfg.listKey], String(n), content, 'template');
+        const previous = findItem(st.libraries[cfg.listKey], st[cfg.activeIdKey]);
+        if (previous?.promptKind) created.promptKind = previous.promptKind;
         st[cfg.activeIdKey] = created.id;
         st[cfg.fieldKey] = content;
         saveSettings();
@@ -917,7 +967,7 @@ async function previewPrompt(title, initial, okLabel) {
 }
 
 async function generateSceneImage(promptKind = 'scene', opts = {}) {
-    const st = getSettings();
+    const st = structuredClone(getSettings());
     const {
         targetMessage = null,
         sourceMessageId = null,
@@ -937,7 +987,8 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
     const ctx = getContext();
     const contextIdentity = captureContextIdentity(ctx);
     const sourceChatId = contextIdentity.chatId;
-    const clickedSpecificMessage = targetMessage != null || sourceMessageId != null;
+    // Per-message actions supply the selected message; global actions leave it unset.
+    const clickedSpecificMessage = targetMessage != null;
     const resolved = clickedSpecificMessage
         ? resolveChatMessage(ctx.chat, {
             id: sourceMessageId,
@@ -952,9 +1003,8 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
     const sourceMessage = resolved?.message || findLastRoleplayMessage(ctx.chat);
     const resolvedSourceId = resolved?.id ?? (sourceMessage ? ctx.chat.indexOf(sourceMessage) : -1);
 
-    const savedRecipe = regenerationMedia?.comfyVideo
-        || sourceMessage?.extra?.comfyVideo
-        || null;
+    const savedRecipe = regenerationMedia
+        ? structuredClone(regenerationMedia.comfyVideo || sourceMessage?.extra?.comfyVideo || {}) : null;
     const imageWorkflow = String(savedRecipe?.imageWorkflow || st.imageWorkflow || '').trim();
     if (!imageWorkflow) {
         toastr.error('Add an Image workflow (library → Edit / Save as…).');
@@ -990,10 +1040,6 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
     const promptVariant = resolveImagePromptVariant(st, savedRecipe?.imagePromptKind || promptKind);
     st.activeImagePromptId = promptVariant.id || st.activeImagePromptId;
     st.imagePromptTemplate = promptVariant.template;
-    saveSettings();
-    applySettingsToUi();
-    refreshLibraryDropdowns();
-
     busy = true;
     const savedWidth = Number(savedRecipe?.width);
     const savedHeight = Number(savedRecipe?.height);
@@ -1003,6 +1049,7 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
         : resolveImageDimensions(st.resolution, st.imageQuality);
     /** @type {ReturnType<typeof showStatus>|null} */
     let status = null;
+    let savedResult = null;
 
     try {
         status = showStatus({
@@ -1010,7 +1057,6 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
             message: regenerationMedia
                 ? 'Preparing image regeneration…'
                 : `Building ${promptVariant.label.toLowerCase()} prompt…`,
-            onStop: () => comfy.interrupt(st.comfyUrl),
         });
 
         // Quick Regen must replay the selected image's actual Comfy request,
@@ -1042,7 +1088,6 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
             status = showStatus({
                 title: 'ComfyVideo',
                 message: 'Generating image in ComfyUI…',
-                onStop: () => comfy.interrupt(st.comfyUrl),
             });
         } else {
             status.setMessage('Generating image in ComfyUI…');
@@ -1059,7 +1104,7 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
         const seed = resolveSeed(st);
         const filled = fillPlaceholders(nodes, {
             prompt: imagePrompt,
-            negative_prompt: st.negativePrompt,
+            negative_prompt: savedRecipe?.negativePrompt ?? st.negativePrompt,
             seed,
             width: dims.width,
             height: dims.height,
@@ -1069,17 +1114,13 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
         status.setMessage('Saving…');
         status.setProgress(100);
 
-        const currentContext = assertGenerationSource(
-            contextIdentity,
-            sourceMessage,
-            sourceSignature,
-            requireLatestRoleplay,
-        );
-
         const charName = ctx.name2 || 'ComfyVideo';
-        const path = await saveBase64AsFile(result.data, charName, `ComfyVideo_${humanizedDateTime()}`, result.format);
-
-        assertGenerationSource(contextIdentity, sourceMessage, sourceSignature, requireLatestRoleplay);
+        savedResult = await resultStore.save(result, { character: charName, chatId: sourceChatId,
+            kind: 'image', prompt: imagePrompt, sourceMessageId: resolvedSourceId,
+            width: dims.width, height: dims.height, workflow: imageWorkflow, seed });
+        const path = savedResult.url;
+        status.signal.throwIfAborted();
+        const currentContext = assertGenerationSource(contextIdentity, sourceMessage, sourceSignature, requireLatestRoleplay);
 
         await attachGeneratedMedia({
             context: currentContext,
@@ -1097,19 +1138,21 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
                     || findItem(st.libraries.imageWorkflows, st.activeImageWorkflowId)?.name
                     || '',
                 seed,
+                negativePrompt: savedRecipe?.negativePrompt ?? st.negativePrompt,
                 step: 'image',
-                sourceMessageId: resolvedSourceId >= 0
-                    ? resolvedSourceId
-                    : (sourceMessage ? currentContext.chat.indexOf(sourceMessage) : undefined),
+                sourceMessageId: sourceMessage ? currentContext.chat.indexOf(sourceMessage) : undefined,
                 castSelectionMode: requestedCast.mode,
                 castParticipantIds: recipeCastIds,
                 castParticipantNames: recipeCastNames,
                 width: dims.width,
                 height: dims.height,
             },
+            // Message actions insert beside their reference; global actions use settings.
             attachMode: regenerationMedia
                 ? 'same'
-                : (clickedSpecificMessage ? 'after' : (st.attachImageMode === 'new' ? 'new' : (sourceMessage ? 'same' : 'new'))),
+                : clickedSpecificMessage
+                    ? 'after'
+                    : (st.attachImageMode === 'last' && sourceMessage ? 'last' : 'new'),
             insertAfterMessage: sourceMessage,
             sourceChatId,
             sourceMessageSignature: sourceSignature,
@@ -1121,12 +1164,15 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
             systemUserName,
         });
 
+        resultStore.attached(savedResult);
+        savedResult = null;
         toastr.success(regenerationMedia
             ? 'Image regeneration added to this gallery.'
             : `${promptVariant.label} image attached.`, 'ComfyVideo');
         injectMessageActions();
     } catch (e) {
-        if (isAbortError(e)) toastr.info('Stopped.', 'ComfyVideo');
+        if (savedResult) notifySavedResult(savedResult);
+        else if (status?.aborted || isAbortError(e)) toastr.info('Stopped.', 'ComfyVideo');
         else {
             console.error(LOG, e);
             toastr.error(String(e.message || e), 'ComfyVideo');
@@ -1141,7 +1187,7 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
  * @param {number} messageId
  */
 async function generateVideoForMessage(messageId) {
-    const st = getSettings();
+    const st = structuredClone(getSettings());
     if (!st.enabled) {
         toastr.warning('ComfyVideo is disabled.');
         return;
@@ -1163,7 +1209,7 @@ async function generateVideoForMessage(messageId) {
         toastr.error('Message not found.');
         return;
     }
-    const imageSource = getMessageImageSource(message);
+    const imageSource = structuredClone(getMessageImageSource(message));
     if (!imageSource) {
         toastr.error('No image on this message to animate.');
         return;
@@ -1173,22 +1219,19 @@ async function generateVideoForMessage(messageId) {
     const alignedFrames = alignH3FrameCount(st.frames);
     if (alignedFrames !== Number(st.frames)) {
         st.frames = alignedFrames;
-        saveSettings();
-        panel?.refresh();
-        applySettingsToUi();
     }
 
     busy = true;
     const dims = resolveVideoDimensions(st, imageSource);
     /** @type {ReturnType<typeof showStatus>|null} */
     let status = null;
+    let savedResult = null;
     const sourceImagePrompt = imageSource.meta?.imagePrompt || '';
 
     try {
         status = showStatus({
             title: 'ComfyVideo I2V',
             message: 'Building motion prompt (LLM)…',
-            onStop: () => comfy.interrupt(st.comfyUrl),
         });
 
         let motionPrompt = await prompts.buildMotionPrompt(st, {
@@ -1208,7 +1251,6 @@ async function generateVideoForMessage(messageId) {
             status = showStatus({
                 title: 'ComfyVideo I2V',
                 message: 'Uploading source image…',
-                onStop: () => comfy.interrupt(st.comfyUrl),
             });
         } else {
             status.setMessage('Uploading source image…');
@@ -1249,16 +1291,12 @@ async function generateVideoForMessage(messageId) {
         status.setMessage('Saving…');
         status.setProgress(100);
 
+        savedResult = await resultStore.save(result, { character: ctx.name2 || 'ComfyVideo', chatId: sourceChatId,
+            kind: 'video', prompt: motionPrompt, sourceMessageId: messageId,
+            width: dims.width, height: dims.height, workflow: st.i2vWorkflow, seed });
+        const path = savedResult.url;
+        status.signal.throwIfAborted();
         const currentContext = assertGenerationSource(contextIdentity, message, sourceSignature);
-
-        const path = await saveBase64AsFile(
-            result.data,
-            ctx.name2 || 'ComfyVideo',
-            `ComfyVideo_I2V_${humanizedDateTime()}`,
-            result.format,
-        );
-
-        assertGenerationSource(contextIdentity, message, sourceSignature);
 
         const meta = {
             motionPrompt,
@@ -1305,10 +1343,13 @@ async function generateVideoForMessage(messageId) {
             systemUserName,
         });
 
+        resultStore.attached(savedResult);
+        savedResult = null;
         toastr.success(`${isVideoFormat(result.format) ? 'Video' : 'Output'} attached.`, 'ComfyVideo');
         injectMessageActions();
     } catch (e) {
-        if (isAbortError(e)) toastr.info('Stopped.', 'ComfyVideo');
+        if (savedResult) notifySavedResult(savedResult);
+        else if (status?.aborted || isAbortError(e)) toastr.info('Stopped.', 'ComfyVideo');
         else {
             console.error(LOG, e);
             toastr.error(String(e.message || e), 'ComfyVideo');
@@ -1476,7 +1517,10 @@ function setupMessageHooks() {
         event_types.CHAT_CHANGED,
     ].filter(Boolean);
     for (const ev of events) {
-        eventSource.on(ev, () => setTimeout(injectMessageActions, 50));
+        eventSource.on(ev, () => setTimeout(() => {
+            injectMessageActions();
+            panel?.refreshContext();
+        }, 50));
     }
     setTimeout(injectMessageActions, 500);
 }
@@ -1492,12 +1536,14 @@ jQuery(async () => {
     comfy = createComfyClient(getRequestHeaders);
     prompts = createPromptBuilder({
         getContext,
-        generateQuietPrompt,
+        sendCurrentPrompt: createCurrentModelRequest({ getContext, createGenerationParameters,
+            getChatCompletionModel, createTextGenGenerationData, getTextGenModel }),
         ConnectionManagerRequestService,
     });
     panel = createPanel({
         getSettings,
         saveSettings,
+        showSavedResults,
         syncSettingsUi: () => {
             applySettingsToUi();
             refreshLibraryDropdowns();

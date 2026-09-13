@@ -1,5 +1,16 @@
 /* ComfyVideo extension */
 
+.comfyvideo-saved-results {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.comfyvideo-saved-results textarea {
+    width: 100%;
+    max-width: 100%;
+    min-height: 6em;
+}
+
 #comfyvideo_settings .comfyvideo-section {
     margin-top: 0.85em;
     padding-top: 0.55em;
@@ -744,6 +755,8 @@
 
 .cv_panel_footer {
     display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
     justify-content: flex-end;
     padding-top: 4px;
     border-top: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor, #444) 50%, transparent);

@@ -71,12 +71,21 @@ function setup({ regen = false, switchChat = false, changeSettings = false, fail
     };
     vm.runInContext('comfy = mockComfy; prompts = mockPrompts;', runState);
     const checked = async operation => { await operation(); assert.deepEqual(calls.errors, []); };
-    return { st, chat, calls, generateImage: () => checked(() => runState.generateSceneImage('portrait', {
+    return { st, chat, calls, generateImage: (kind = 'portrait') => checked(() => runState.generateSceneImage(kind, {
         targetMessage: chat[26], sourceMessageId: 26,
         regenerationMedia: regen ? { comfyVideo: recipe } : null,
     })), generateGlobal: () => checked(() => runState.generateSceneImage('scene')),
     generateVideo: () => checked(() => runState.generateVideoForMessage(26)) };
 }
+
+test('full-body generation selects its own prompt and stores its kind for regeneration', async () => {
+    const h = setup();
+    await h.generateImage('full_body');
+    assert.equal(h.calls.prompts[0].imagePromptTemplate, defaults.FULL_BODY_PORTRAIT_IMAGE_PROMPT_TEMPLATE);
+    assert.equal(h.calls.attachments[0].meta.imagePromptKind, 'full_body');
+    assert.equal(h.calls.attachments[0].attachMode, 'after');
+    assert.equal(h.calls.attachments[0].insertAfterMessage, h.chat[26]);
+});
 
 test('fresh quickbar generation uses current settings and inserts after its reference', async () => {
     const h = setup({ changeSettings: true });

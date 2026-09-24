@@ -5,22 +5,6 @@
       "image": "%image%"
     }
   },
-  "105": {
-    "class_type": "ImageScale",
-    "inputs": {
-      "image": [
-        "1",
-        0
-      ],
-      "upscale_method": "lanczos",
-      "width": "%width%",
-      "height": "%height%",
-      "crop": "center"
-    },
-    "_meta": {
-      "title": "Resize source still for H3"
-    }
-  },
   "6": {
     "class_type": "UNETLoader",
     "inputs": {
@@ -36,20 +20,35 @@
         0
       ],
       "lora_name": "minimax_h3_turbo_v4_step600_ema.safetensors",
-      "strength": 1.0,
+      "strength": 1,
       "low_vram": false
+    }
+  },
+  "8": {
+    "class_type": "H3SLAAttention",
+    "inputs": {
+      "model": [
+        "7",
+        0
+      ],
+      "sparsity_ratio": 0.9,
+      "block_size": "64",
+      "min_seq_len": 8192,
+      "dense_last_steps": 0,
+      "protect_audio": true,
+      "enabled": true
     }
   },
   "9": {
     "class_type": "BasicScheduler",
     "inputs": {
       "model": [
-        "7",
+        "8",
         0
       ],
       "scheduler": "simple",
       "steps": 8,
-      "denoise": 1.0
+      "denoise": 1
     }
   },
   "10": {
@@ -114,7 +113,7 @@
     "class_type": "BasicGuider",
     "inputs": {
       "model": [
-        "7",
+        "8",
         0
       ],
       "conditioning": [
@@ -168,7 +167,7 @@
         "91",
         0
       ],
-      "filename_prefix": "st_",
+      "filename_prefix": "MiniMax_H3_i2v_turbo",
       "format": "mp4",
       "codec": "h264"
     }
@@ -184,14 +183,14 @@
         "11",
         0
       ],
+      "first_frame": [
+        "1",
+        0
+      ],
       "prompt": "%prompt%",
       "width": "%width%",
       "height": "%height%",
-      "length": "%frames%",
-      "first_frame": [
-        "105",
-        0
-      ]
+      "length": "%frames%"
     }
   }
 }

@@ -157,6 +157,10 @@ test('cast validation follows composition rules', () => {
     const none = { mode: 'none', participantIds: [] };
     assert.equal(validateCastSelection(one, 'portrait').valid, true);
     assert.equal(validateCastSelection(two, 'portrait').valid, false);
+    assert.equal(validateCastSelection(one, 'full_body').valid, true);
+    assert.equal(validateCastSelection(two, 'full_body').valid, false);
+    assert.equal(validateCastSelection(none, 'full_body').valid, false);
+    assert.equal(validateCastSelection({ mode: 'auto' }, 'full_body').valid, true);
     assert.equal(validateCastSelection(two, 'interaction').valid, true);
     assert.equal(validateCastSelection(one, 'interaction').valid, false);
     assert.equal(validateCastSelection(none, 'environment').valid, true);

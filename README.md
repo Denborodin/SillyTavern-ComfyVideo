@@ -20,8 +20,9 @@ Export / Import JSON under **Library backup**.
 Tuned for **natural language**:
 
 - **Image composition presets (Z-Image / Krea 2 / FLUX.2 Klein)** — Whole scene,
-  single-character Portrait, precise two- or three-person Interaction, and wide
-  Environment prompts. They default to natural camera distance and perspective,
+  single-character Chest-up portrait and Full-body portrait (head to toe), and
+  precise two- or three-person Interaction. The legacy Environment preset remains
+  in the library. They default to natural camera distance and perspective,
   avoiding close wide-angle and dramatic viewpoints unless the scene calls for
   them. Each remains editable in the prompt library.
 - **MiniMax H3 (video)** — official I2VA structure with a first-frame
@@ -42,7 +43,7 @@ Wand menu → **ComfyVideo** (or `/comfyvideo`) opens a floating panel (Pathweav
 - Pick image and I2V workflows; edit all LLM instruction presets in Full settings
 - Choose Realistic, Western comic, or a saved custom image style
 - Choose `Auto`, no characters, or an explicit one-to-three-character cast for the next image
-- **Whole scene**, **Portrait**, **Interaction**, or **Environment** image actions
+- **Whole scene**, **Chest-up portrait**, **Interaction**, or **Full-body portrait** image actions
 - **Generate video** from a selectable ComfyVideo still
 - Link to full extension settings  
 
@@ -91,6 +92,8 @@ selectable: video-safe 1×, High 1.5× (1296×1728 / 1728×1296), or Ultra 2×
 (1728×2304 / 2304×1728). The bundled H3 v2 workflow resizes the uploaded source
 still with ComfyUI's built-in Lanczos `ImageScale` node before conditioning, so
 the original high-resolution still remains in chat while H3 receives a safe size.
+Turbo A v2 instead passes the source still directly to `MiniMaxH3ImageToVideo`,
+matching the supplied API graph; its output dimensions still come from the panel.
 
 Photo, realistic digital-art, and Western detailed-comic styles are appended
 to image prompts and inserted into H3's `[Shot 1]`, so the official field order
@@ -119,15 +122,27 @@ workflows** in Library backup to explicitly restore a deleted copy.
   CFG 1, zero negative conditioning, and accepts prompt, seed, width, and height
   placeholders. It requires a ComfyUI build with Krea 2 loader support; all
   workflow nodes are built in.
-- **MiniMax H3 I2V Turbo** is the default I2V workflow. It uses the same H3
-  base files and `ImageScale` resize as v2, then applies
+- **MiniMax H3 I2V Turbo A v2** is the default I2V workflow, adapted from
+  `minimax_h3_i2v_turbo_A_api.json`. It uses the same H3 base files as H3 I2V v2
+  and passes the loaded image directly to H3 without an `ImageScale` node. It applies
   `minimax_h3_turbo_v4_step600_ema.safetensors` at strength 1.0 through
   `MiniMaxH3TurboLoRA` and samples 8 `simple` steps with
-  `MiniMaxH3TurboSampler`. It accepts the same I2V placeholders. Required
+  `MiniMaxH3TurboSampler`. `H3SLAAttention` sits between the Turbo LoRA and both
+  the scheduler and guider: sparsity 0.9, block size 64, minimum sequence length
+  8192, zero dense last steps, and audio protection enabled. It accepts image,
+  prompt, seed, frames, FPS, width, and height placeholders; the sample's fixed
+  prompt, input filename, seed, 832×1248 size, 362 frames, and 24 FPS are replaced
+  by panel values. Negative prompting is not used by this graph. Required
   extras: [ComfyUI-MiniMax-H3-Turbo](https://github.com/Larryvrh/ComfyUI-MiniMax-H3-Turbo)
-  and the [Turbo v4 600 EMA LoRA](https://huggingface.co/larryvrh/MiniMax-H3-Turbo-Lora).
+  and the [Turbo v4 600 EMA LoRA](https://huggingface.co/larryvrh/MiniMax-H3-Turbo-Lora),
+  plus a node installation providing `H3SLAAttention`. ComfyUI must also support
+  the supplied H3 loaders, video/audio VAEs, and MP4/H.264 output nodes.
   Fresh installs select it automatically. Existing installs still on bundled
   H3 I2V v2 are switched once; a custom or later I2V selection is left alone.
+  Existing Turbo users receive a separate **MiniMax H3 I2V Turbo A v2** library
+  entry on reload; select it in the I2V workflow dropdown to use the update.
+  Saved older workflows and custom edits are preserved. The imported graph and
+  placeholder substitutions are validated locally; GPU generation has not been rerun.
 - **MiniMax H3 I2V v2** remains as a fallback that does not need the Turbo
   custom nodes. It uses the MiniMax H3 UNet, Qwen3-VL clip, video/audio VAEs,
   built-in `ImageScale`, `MiniMaxH3ImageToVideo`, and video nodes. It samples

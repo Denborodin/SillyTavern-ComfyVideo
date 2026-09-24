@@ -28,7 +28,7 @@
         getCastParticipants: () => [],
         getMessageImageUrl: message => message === chat[26] ? '/img/ai4.png' : null,
         getMessageImageSource: () => ({ meta: { width: 1728, height: 1296 } }),
-        generateSceneImage: async (_, opts) => report(`Image reference #${opts.sourceMessageId}`),
+        generateSceneImage: async (kind, opts) => report(`${kind} image reference #${opts.sourceMessageId}`),
         generateVideoForMessage: async id => report(`Video reference #${id}`),
         showSavedResults: async () => report('Recovery panel entry point clicked'),
     });

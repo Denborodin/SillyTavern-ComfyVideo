@@ -86,7 +86,7 @@ const I2V_PLACEHOLDERS = [
 
 const IMAGE_STYLE_PROMPTS = Object.freeze({
     photo: 'Photorealistic cinematic imagery, natural adult anatomy, credible skin texture, realistic practical lighting, detailed environment, coherent depth and perspective.',
-    digital_art: 'Realistic hand-painted digital illustration with clear artistic brushwork, matte natural materials, rich but restrained color, believable adult anatomy, expressive lighting, and coherent depth and perspective.',
+    digital_art: 'Realistic digital illustration with subtle texture, natural materials, rich but restrained color, believable adult anatomy, expressive lighting, and coherent depth and perspective.',
     western_comic: 'Detailed Western graphic-novel art, realistic adult proportions, expressive natural faces, controlled ink contours, layered painted shading, textured brushwork, cinematic panel composition, no anime or manga styling.',
 });
 

@@ -33,14 +33,14 @@
     },
     {
       "id": "builtin.video.minimax-h3-i2v-turbo",
-      "version": 1,
-      "name": "MiniMax H3 I2V Turbo",
+      "version": 2,
+      "name": "MiniMax H3 I2V Turbo A v2",
       "kind": "i2v",
       "file": "video/minimax-h3-i2v-turbo.json",
-      "description": "Default MiniMax H3 I2V with Larryvrh Turbo v4 600 EMA LoRA, 8-step simple sampling, and source-still resize.",
+      "description": "MiniMax H3 Turbo A API workflow with Turbo v4 600 EMA LoRA, H3 SLA attention, 8-step simple sampling, and direct first-frame input.",
       "default": true,
       "requiredPlaceholders": ["%image%", "%prompt%", "%seed%", "%frames%", "%fps%", "%width%", "%height%"],
-      "optionalPlaceholders": ["%negative_prompt%"]
+      "optionalPlaceholders": []
     },
     {
       "id": "builtin.video.minimax-h3-i2v",

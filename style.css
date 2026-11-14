@@ -139,6 +139,17 @@
     min-height: 0;
 }
 
+#comfyvideo_workflow_editor_image_options {
+    margin-bottom: 0.75em;
+    min-width: 0;
+}
+
+#comfyvideo_workflow_editor_image_profile {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+
 .comfyvideo_workflow_editor_workflow_container {
     flex: 1 1 auto;
     min-width: 0;

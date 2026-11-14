@@ -22,6 +22,37 @@ test('current-model image and motion requests exclude later chat entries', async
     }
 });
 
+test('image and motion prompts send valid Unicode in both LLM modes even with malformed saved text', async () => {
+    const chat = [{ name: 'A', mes: 'Сцена 😀 \uD800' }];
+    const requests = [];
+    const capture = async messages => {
+        requests.push(messages);
+        return { content: 'A valid prompt' };
+    };
+    const builder = createPromptBuilder({
+        getContext: () => ({ chat }),
+        sendCurrentPrompt: ({ messages }) => capture(messages),
+        ConnectionManagerRequestService: { sendRequest: (_profile, messages) => capture(messages) },
+    });
+    for (const promptMode of ['quiet', 'profile']) {
+        const settings = {
+            promptMode, llmProfileId: 'test', contextMessages: 1, includeCharacter: false, frames: 124, fps: 24,
+            imagePromptTemplate: 'Кадр 📸 \uD800',
+            motionPromptTemplate: 'Движение 🎬 \uDC00',
+        };
+        await builder.buildImagePrompt(settings);
+        await builder.buildMotionPrompt(settings, { sourceImagePrompt: 'Костюм 🦸 \uDC00' });
+    }
+    assert.equal(requests.length, 4);
+    for (const [system, user] of requests) {
+        const payload = JSON.stringify({ messages: [system, user] });
+        assert.doesNotMatch(payload, /\\ud[89a-f][0-9a-f]{2}/i);
+        assert.match(user.content, /Сцена 😀 �/u);
+        assert.match(system.content, /(?:Кадр 📸|Движение 🎬) �/u);
+        if (system.content.startsWith('Движение')) assert.match(user.content, /Костюм 🦸 �/u);
+    }
+});
+
 test('current-model request snapshots settings and cancels only its own transport', async () => {
     const settings = { model: 'original', openai_max_tokens: 1 };
     const controller = new AbortController();

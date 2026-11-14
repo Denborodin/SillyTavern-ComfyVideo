@@ -14,15 +14,14 @@
   },
   "7": {
     "inputs": {
-      "text": "%negative_prompt%",
-      "clip": [
-        "18",
+      "conditioning": [
+        "6",
         0
       ]
     },
-    "class_type": "CLIPTextEncode",
+    "class_type": "ConditioningZeroOut",
     "_meta": {
-      "title": "CLIP Text Encode (Negative Prompt)"
+      "title": "Zero Negative Conditioning"
     }
   },
   "8": {
@@ -84,56 +83,14 @@
   },
   "29": {
     "inputs": {
-      "add_noise": "enable",
-      "noise_seed": 596267322935828,
-      "steps": 15,
+      "seed": "%seed%",
+      "steps": 8,
       "cfg": 1,
-      "sampler_name": "euler",
+      "sampler_name": "res_multistep",
       "scheduler": "simple",
-      "start_at_step": [
-        "32",
-        0
-      ],
-      "end_at_step": 10000,
-      "return_with_leftover_noise": "disable",
+      "denoise": 1,
       "model": [
-        "16",
-        0
-      ],
-      "positive": [
-        "6",
-        0
-      ],
-      "negative": [
-        "7",
-        0
-      ],
-      "latent_image": [
-        "30",
-        0
-      ]
-    },
-    "class_type": "KSamplerAdvanced",
-    "_meta": {
-      "title": "KSampler (Advanced)"
-    }
-  },
-  "30": {
-    "inputs": {
-      "add_noise": "enable",
-      "noise_seed": "%seed%",
-      "steps": 10,
-      "cfg": 0.4,
-      "sampler_name": "euler",
-      "scheduler": "simple",
-      "start_at_step": 0,
-      "end_at_step": [
-        "32",
-        0
-      ],
-      "return_with_leftover_noise": "disable",
-      "model": [
-        "16",
+        "34",
         0
       ],
       "positive": [
@@ -149,23 +106,14 @@
         0
       ]
     },
-    "class_type": "KSamplerAdvanced",
+    "class_type": "KSampler",
     "_meta": {
-      "title": "KSampler (Advanced)"
-    }
-  },
-  "32": {
-    "inputs": {
-      "value": 1
-    },
-    "class_type": "easy int",
-    "_meta": {
-      "title": "StartStep"
+      "title": "Z-Image Turbo Sampler"
     }
   },
   "33": {
     "inputs": {
-      "filename_prefix": "ComfyUI",
+      "filename_prefix": "ComfyVideo/ZImageTurbo",
       "images": [
         "8",
         0
@@ -174,6 +122,19 @@
     "class_type": "SaveImage",
     "_meta": {
       "title": "Save Image"
+    }
+  },
+  "34": {
+    "inputs": {
+      "shift": 3,
+      "model": [
+        "16",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "Z-Image Turbo Shift"
     }
   }
 }

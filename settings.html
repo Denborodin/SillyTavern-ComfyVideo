@@ -33,13 +33,13 @@
                 <option value="portrait">864 × 1152 (portrait, 3:4)</option>
                 <option value="landscape">1152 × 864 (landscape, 4:3)</option>
             </select>
-            <label for="comfyvideo_image_quality">Z-Image still quality</label>
+            <label for="comfyvideo_image_quality">Image size</label>
             <select id="comfyvideo_image_quality" class="text_pole">
-                <option value="compatible">Video-safe (1×)</option>
-                <option value="high">High (1.5×, recommended)</option>
-                <option value="ultra">Ultra (2×, high VRAM use)</option>
+                <option value="compatible">Small</option>
+                <option value="high">Medium</option>
+                <option value="ultra">Large</option>
             </select>
-            <p class="comfyvideo-hint">H3 always renders at the video size above. Its workflow resizes the selected still before conditioning.</p>
+            <p class="comfyvideo-hint">Image sizes follow the selected workflow's model. H3 uses the video size above.</p>
         </div>
 
         <div class="comfyvideo-section">

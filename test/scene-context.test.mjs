@@ -11,6 +11,7 @@ import {
     messageSignature,
     resolveCastParticipants,
     resolveChatMessage,
+    truncateContextText,
     validateCastSelection,
 } from '../lib/scene-context.js';
 
@@ -135,6 +136,15 @@ test('roleplay and cast context respect character budgets while retaining both e
     assert.ok(cast.length <= MAX_CAST_CONTEXT_CHARS);
     assert.match(cast, /START-/);
     assert.match(cast, /-END/);
+});
+
+test('context clipping omits split emoji at both boundaries and keeps whole characters', () => {
+    assert.equal(truncateContextText('A😀B', 2), 'A');
+    assert.equal(truncateContextText('A😀B', 3), 'A😀');
+    const text = 'x'.repeat(2692) + '🎬' + 'y'.repeat(6000) + '🚀' + 'z'.repeat(3291);
+    const clipped = truncateContextText(text, MAX_MESSAGE_CHARS);
+    assert.equal(clipped, 'x'.repeat(2692) + '\n[…truncated…]\n' + 'z'.repeat(3291));
+    assert.ok(clipped.length <= MAX_MESSAGE_CHARS);
 });
 
 test('explicit and none cast blocks are strict', () => {

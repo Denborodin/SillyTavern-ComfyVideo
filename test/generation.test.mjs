@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import * as defaults from '../lib/defaults.js';
 import * as library from '../lib/library.js';
 import * as workflow from '../lib/workflow.js';
+import * as imageModels from '../lib/image-models.js';
 import * as scene from '../lib/scene-context.js';
 import * as media from '../lib/media-source.js';
 import { createResultStore } from '../lib/saved-results.js';
@@ -31,9 +32,9 @@ function setup({ regen = false, switchChat = false, changeSettings = false, fail
     selected.promptKind = 'portrait';
     st.activeImagePromptId = selected.id;
     st.imagePromptTemplate = selected.template;
-    const calls = { attachments: [], files: [], prompts: [], requests: [], statuses: [], errors: [] };
+    const calls = { attachments: [], files: [], prompts: [], promptOptions: [], requests: [], statuses: [], errors: [] };
     const runState = vm.createContext({
-        ...defaults, ...library, ...workflow, ...scene, ...media, createResultStore, isAbortError,
+        ...defaults, ...library, ...workflow, ...imageModels, ...scene, ...media, createResultStore, isAbortError,
         structuredClone, URL, DOMException, AbortController, setTimeout, clearTimeout,
         newClientId: () => 'test-id',
         extension_settings: { ComfyVideo: st },
@@ -56,7 +57,7 @@ function setup({ regen = false, switchChat = false, changeSettings = false, fail
     vm.runInContext(source, runState);
     runState.mockPrompts = {
         getCastParticipants: () => [],
-        buildImagePrompt: async settings => { calls.prompts.push(settings); return 'NEW PROMPT'; },
+        buildImagePrompt: async (settings, opts) => { calls.prompts.push(settings); calls.promptOptions.push(opts); return 'NEW PROMPT'; },
         buildMotionPrompt: async settings => { calls.prompts.push(settings); return 'MOTION'; },
     };
     runState.mockComfy = {
@@ -109,6 +110,32 @@ test('Quick Regen replays the image recipe and appends in its gallery', async ()
     assert.equal(h.calls.requests[0].prompt.n.class_type, 'Old');
     assert.equal(h.calls.requests[0].prompt.n.inputs.width, 512);
     assert.equal(h.calls.attachments[0].attachMode, 'same');
+});
+
+test('LLM receives the same model and dimensions as ComfyUI; image style is not appended afterwards', async () => {
+    const h = setup({ changeSettings: true });
+    h.st.libraries.imageWorkflows[0].imageProfile = 'moss';
+    h.st.imageStylePreset = 'western_comic';
+    await h.generateImage();
+    assert.equal(h.calls.promptOptions[0].imageProfile, 'moss');
+    assert.equal(h.calls.promptOptions[0].dimensions.width, 1408);
+    assert.equal(h.calls.promptOptions[0].dimensions.height, 1056);
+    assert.equal(h.calls.prompts[0].imageStylePreset, 'western_comic');
+    assert.equal(h.calls.requests[0].prompt.n.inputs.width, 1408);
+    assert.equal(h.calls.requests[0].prompt.n.inputs.prompt, 'NEW PROMPT');
+    assert.equal(h.calls.attachments[0].meta.imageProfile, 'moss');
+    assert.equal(h.calls.attachments[0].meta.width, 1408);
+});
+
+test('Quick Regen retains historical dimensions and prompt after changing model and style', async () => {
+    const h = setup({ regen: true });
+    h.st.libraries.imageWorkflows[0].imageProfile = 'moss';
+    h.st.imageStylePreset = 'western_comic';
+    h.st.imageQuality = 'ultra';
+    await h.generateImage();
+    assert.equal(h.calls.prompts.length, 0);
+    assert.equal(h.calls.requests[0].prompt.n.inputs.width, 512);
+    assert.equal(h.calls.requests[0].prompt.n.inputs.prompt, 'OLD PROMPT');
 });
 
 test('global image generation appends at the end', async () => {

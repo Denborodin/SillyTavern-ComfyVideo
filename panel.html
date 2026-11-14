@@ -12,22 +12,22 @@
             <div class="cv_panel_section">
                 <div class="cv_panel_label">Proportions</div>
                 <div class="cv_seg" id="comfyvideo_panel_resolution" role="group">
-                    <button type="button" class="cv_seg_btn" data-value="portrait" title="864 × 1152">
+                    <button type="button" class="cv_seg_btn" data-value="portrait" title="Portrait 3:4">
                         <i class="fa-solid fa-mobile-screen"></i>
                         <span>Portrait</span>
-                        <small>864×1152</small>
+                        <small>3:4</small>
                     </button>
-                    <button type="button" class="cv_seg_btn" data-value="landscape" title="1152 × 864">
+                    <button type="button" class="cv_seg_btn" data-value="landscape" title="Landscape 4:3">
                         <i class="fa-solid fa-panorama"></i>
                         <span>Landscape</span>
-                        <small>1152×864</small>
+                        <small>4:3</small>
                     </button>
                 </div>
-                <div class="cv_panel_label">Still quality</div>
+                <div class="cv_panel_label">Image size</div>
                 <div class="cv_seg cv_seg_style" id="comfyvideo_panel_image_quality" role="group">
-                    <button type="button" class="cv_seg_btn" data-value="compatible">Video-safe<br><small>1×</small></button>
-                    <button type="button" class="cv_seg_btn" data-value="high">High<br><small>1.5×</small></button>
-                    <button type="button" class="cv_seg_btn" data-value="ultra">Ultra<br><small>2×</small></button>
+                    <button type="button" class="cv_seg_btn" data-value="compatible">Small</button>
+                    <button type="button" class="cv_seg_btn" data-value="high">Medium</button>
+                    <button type="button" class="cv_seg_btn" data-value="ultra">Large</button>
                 </div>
             </div>
 
@@ -62,6 +62,11 @@
                 <p class="cv_panel_hint cv_cast_error" id="comfyvideo_panel_cast_error" role="alert" hidden></p>
             </div>
 
+            <div class="cv_panel_section">
+                <label class="cv_panel_label" for="comfyvideo_panel_image_wf">Image workflow</label>
+                <select id="comfyvideo_panel_image_wf" class="text_pole"></select>
+            </div>
+
             <details class="cv_panel_advanced">
                 <summary>Advanced options</summary>
                 <div class="cv_panel_section">
@@ -85,10 +90,6 @@
                     <button type="button" class="cv_seg_btn" data-value="normal">Normal</button>
                     <button type="button" class="cv_seg_btn" data-value="energetic">Energetic</button>
                 </div>
-            </div>
-            <div class="cv_panel_section">
-                <div class="cv_panel_label">Image workflow</div>
-                <select id="comfyvideo_panel_image_wf" class="text_pole"></select>
             </div>
             <div class="cv_panel_section">
                 <div class="cv_panel_label">I2V workflow</div>

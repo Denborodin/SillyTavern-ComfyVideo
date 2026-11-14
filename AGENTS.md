@@ -11,8 +11,8 @@ This repository contains a frontend-only SillyTavern extension that generates a 
 - Bundled workflows must be copied into the user's editable workflow library; users can edit, duplicate, delete, import, and add their own workflows.
 - Never overwrite a user-edited workflow merely because a newer bundled version exists.
 - MiniMax H3 is the only supported video model in this iteration.
-- Image workflows remain generic ComfyUI API workflows and may target Z-Image Turbo, Krea 2 Turbo, FLUX.2 Klein, or other natural-language T2I models.
-- The repository should include tested sample workflows for Z-Image Turbo, Krea 2 Turbo, FLUX.2 Klein T2I, and MiniMax H3 I2V.
+- Image workflows remain generic ComfyUI API workflows and may target Z-Image Turbo, Krea 2 Turbo, MOSS-Image, or other natural-language T2I models.
+- The repository should include tested sample workflows for Z-Image Turbo, Krea 2 Turbo, MOSS-Image SFT T2I, and MiniMax H3 I2V.
 - Do not add reference-image or character-reference support in this iteration.
 - Do not add multiple ComfyUI backends, server-side components, proxy endpoints, job infrastructure, model autodetection, or a structured SceneSpec.
 - Avoid new runtime dependencies unless there is a clear and documented need.
@@ -21,7 +21,7 @@ This repository contains a frontend-only SillyTavern extension that generates a 
 
 ## Product direction
 
-- Keep one universal natural-language image-prompt generator.
+- Keep one shared natural-language image-prompt generator, with explicit workflow model profiles for prompt guidance and sizes.
 - Keep model-specific behavior inside the selected ComfyUI workflow wherever possible.
 - Add simple visual-style selection for realistic and Western-comic output.
 - Keep the current two-stage flow:

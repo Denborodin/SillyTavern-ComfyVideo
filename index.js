@@ -32,7 +32,9 @@ import {
     wrapPromptBody,
     resolveDimensions,
     resolveImageDimensions,
+    IMAGE_SIZE_LABELS,
 } from './lib/workflow.js';
+import { IMAGE_MODEL_PROFILES, getWorkflowImageProfile, resolveImageProfile, resolveVisualStyle } from './lib/image-models.js';
 import { createPromptBuilder } from './lib/prompt-builder.js';
 import {
     attachGeneratedMedia,
@@ -40,6 +42,7 @@ import {
     getMessageImageUrl,
     isComfyVideoMessage,
     isVideoFormat,
+    setupImageWorkflowCaptions,
 } from './lib/media.js';
 import {
     findLastRoleplayMessage,
@@ -83,12 +86,6 @@ const I2V_PLACEHOLDERS = [
     'image', 'image_name', 'image_subfolder',
     'prompt', 'negative_prompt', 'seed', 'frames', 'fps', 'width', 'height',
 ];
-
-const IMAGE_STYLE_PROMPTS = Object.freeze({
-    photo: 'Photorealistic cinematic imagery, natural adult anatomy, credible skin texture, realistic practical lighting, detailed environment, coherent depth and perspective.',
-    digital_art: 'Realistic digital illustration with subtle texture, natural materials, rich but restrained color, believable adult anatomy, expressive lighting, and coherent depth and perspective.',
-    western_comic: 'Detailed Western graphic-novel art, realistic adult proportions, expressive natural faces, controlled ink contours, layered painted shading, textured brushwork, cinematic panel composition, no anime or manga styling.',
-});
 
 const defaultSettings = Object.freeze({
     enabled: true,
@@ -304,12 +301,6 @@ function assertGenerationSource(identity, sourceMessage, sourceSignature, requir
     return current;
 }
 
-function resolveVisualStyle(settings) {
-    return settings.imageStylePreset === 'custom'
-        ? String(settings.customImageStyle || '').trim()
-        : (IMAGE_STYLE_PROMPTS[settings.imageStylePreset] || '');
-}
-
 function appendVisualStyle(prompt, settings) {
     const scene = String(prompt || '').trim();
     const style = resolveVisualStyle(settings);
@@ -406,6 +397,18 @@ function refreshLibraryDropdowns() {
         const sel = /** @type {HTMLSelectElement|null} */ (document.getElementById(id));
         if (sel) fillLibrarySelect(sel, list, active);
     }
+    updateImageSizeOptions();
+}
+
+function updateImageSizeOptions() {
+    const select = document.getElementById('comfyvideo_image_quality');
+    if (!select) return;
+    const st = getSettings();
+    const profile = resolveImageProfile(st);
+    for (const option of select.options) {
+        const dimensions = resolveImageDimensions(st.resolution, option.value, profile);
+        option.textContent = `${IMAGE_SIZE_LABELS[option.value]} — ${dimensions.label}`;
+    }
 }
 
 async function loadSettingsHtml() {
@@ -474,6 +477,7 @@ function bindSettingsUi() {
             else if (kind === 'number') st[key] = Number(/** @type {HTMLInputElement} */ (el).value);
             else st[key] = /** @type {HTMLInputElement} */ (el).value;
             if (key === 'frames' || key === 'fps') updateClipLengthHint();
+            if (key === 'resolution') updateImageSizeOptions();
             if (key === 'imageStylePreset') {
                 document.getElementById('comfyvideo_custom_image_style_wrap')?.classList.toggle(
                     'displayNone', st.imageStylePreset !== 'custom');
@@ -606,6 +610,7 @@ function wireWorkflowLibrary(cfg) {
             }
         }
         saveSettings();
+        updateImageSizeOptions();
     });
 
     document.getElementById(cfg.editId)?.addEventListener('click', async () => {
@@ -617,57 +622,64 @@ function wireWorkflowLibrary(cfg) {
         const result = await openWorkflowEditor({
             name,
             json: initial,
+            kind: cfg.kind,
+            imageProfile: getWorkflowImageProfile(item),
             placeholders: cfg.kind === 'i2v' ? I2V_PLACEHOLDERS : IMAGE_PLACEHOLDERS,
         });
         if (result == null) return;
         try {
-            validateWorkflow(parseWorkflow(result), cfg.kind);
+            validateWorkflow(parseWorkflow(result.json), cfg.kind);
         } catch (err) {
             toastr.error(String(err.message || err), 'ComfyVideo');
             return;
         }
-        st[cfg.fieldKey] = result;
         if (item) {
-            item.json = result;
+            item.json = result.json;
+            if (cfg.kind === 'image') item.imageProfile = result.imageProfile;
         } else {
             // No selection: save as new
             const n = await callGenericPopup('Name for this workflow:', POPUP_TYPE.INPUT, name);
-            if (!n) {
-                saveSettings();
-                return;
-            }
-            const created = addItem(st.libraries[cfg.listKey], String(n), result, 'json');
+            if (!n) return;
+            const created = addItem(st.libraries[cfg.listKey], String(n), result.json, 'json');
+            if (cfg.kind === 'image') created.imageProfile = result.imageProfile;
             st[cfg.activeIdKey] = created.id;
             refreshLibraryDropdowns();
         }
+        st[cfg.fieldKey] = result.json;
         saveSettings();
+        updateImageSizeOptions();
         toastr.success('Workflow saved.', 'ComfyVideo');
     });
 
     document.getElementById(cfg.saveAsId)?.addEventListener('click', async () => {
         const st = getSettings();
         let json = st[cfg.fieldKey] || '';
+        let imageProfile = getWorkflowImageProfile(findItem(st.libraries[cfg.listKey], st[cfg.activeIdKey]));
         if (!json.trim()) {
             // open editor first if empty
             const edited = await openWorkflowEditor({
                 name: 'New workflow',
                 json: '',
+                kind: cfg.kind,
+                imageProfile,
                 placeholders: cfg.kind === 'i2v' ? I2V_PLACEHOLDERS : IMAGE_PLACEHOLDERS,
             });
             if (edited == null) return;
             try {
-                validateWorkflow(parseWorkflow(edited), cfg.kind);
+                validateWorkflow(parseWorkflow(edited.json), cfg.kind);
             } catch (err) {
                 toastr.error(String(err.message || err), 'ComfyVideo');
                 return;
             }
-            json = edited;
-            st[cfg.fieldKey] = json;
+            json = edited.json;
+            imageProfile = edited.imageProfile;
         }
         const n = await callGenericPopup('Save workflow as:', POPUP_TYPE.INPUT, '');
         if (!n) return;
         const created = addItem(st.libraries[cfg.listKey], String(n), json, 'json');
+        if (cfg.kind === 'image') created.imageProfile = imageProfile;
         st[cfg.activeIdKey] = created.id;
+        st[cfg.fieldKey] = json;
         saveSettings();
         refreshLibraryDropdowns();
         toastr.success('Workflow added to library.', 'ComfyVideo');
@@ -763,8 +775,8 @@ function wirePromptLibrary(cfg) {
 
 /**
  * ST-style wide popup workflow editor with placeholder checklist.
- * @param {{ name: string, json: string, placeholders: string[] }} opts
- * @returns {Promise<string|null>}
+ * @param {{ name: string, json: string, placeholders: string[], kind: string, imageProfile?: string }} opts
+ * @returns {Promise<{json:string,imageProfile:string}|null>}
  */
 async function openWorkflowEditor(opts) {
     let html;
@@ -795,6 +807,12 @@ async function openWorkflowEditor(opts) {
     $root.find('#comfyvideo_workflow_editor_name').text(opts.name || 'Workflow');
     const $ta = $root.find('#comfyvideo_workflow_editor_json');
     $ta.val(workflow);
+    $root.find('#comfyvideo_workflow_editor_image_options').prop('hidden', opts.kind !== 'image');
+    const $profile = $root.find('#comfyvideo_workflow_editor_image_profile');
+    for (const [id, profile] of Object.entries(IMAGE_MODEL_PROFILES)) {
+        $profile.append($('<option>').val(id).text(profile.name));
+    }
+    $profile.val(opts.imageProfile || 'generic');
 
     const $list = $root.find('#comfyvideo_workflow_editor_placeholders');
     $list.empty();
@@ -820,7 +838,7 @@ async function openWorkflowEditor(opts) {
 
     const ok = await resultPromise;
     if (!ok) return null;
-    return workflow;
+    return { json: workflow, imageProfile: String($profile.val() || 'generic') };
 }
 
 function applySettingsToUi() {
@@ -835,6 +853,7 @@ function applySettingsToUi() {
     set('comfyvideo_comfy_url', st.comfyUrl);
     set('comfyvideo_resolution', st.resolution === 'landscape' ? 'landscape' : 'portrait');
     set('comfyvideo_image_quality', st.imageQuality);
+    updateImageSizeOptions();
     set('comfyvideo_prompt_mode', st.promptMode);
     set('comfyvideo_llm_profile', st.llmProfileId);
     set('comfyvideo_max_prompt_tokens', st.maxPromptTokens);
@@ -1010,6 +1029,9 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
         toastr.error('Add an Image workflow (library → Edit / Save as…).');
         return;
     }
+    const imageWorkflowId = savedRecipe?.imageWorkflow
+        ? (savedRecipe.imageWorkflowId || '')
+        : st.activeImageWorkflowId;
 
     const sourceSignature = messageSignature(sourceMessage);
     const requireLatestRoleplay = !clickedSpecificMessage;
@@ -1043,10 +1065,11 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
     busy = true;
     const savedWidth = Number(savedRecipe?.width);
     const savedHeight = Number(savedRecipe?.height);
+    const imageProfile = regenerationMedia ? savedRecipe?.imageProfile || 'generic' : resolveImageProfile(st);
     const dims = Number.isFinite(savedWidth) && Number.isFinite(savedHeight)
         && savedWidth > 0 && savedHeight > 0
         ? { width: savedWidth, height: savedHeight }
-        : resolveImageDimensions(st.resolution, st.imageQuality);
+        : resolveImageDimensions(st.resolution, st.imageQuality, imageProfile);
     /** @type {ReturnType<typeof showStatus>|null} */
     let status = null;
     let savedResult = null;
@@ -1061,15 +1084,16 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
 
         // Quick Regen must replay the selected image's actual Comfy request,
         // not ask the LLM to describe the scene again. The saved prompt is
-        // already the final, style-appended prompt sent to ComfyUI.
+        // already the final prompt sent to ComfyUI, including any legacy style suffix.
         let imagePrompt = regenerationMedia
             ? String(savedRecipe?.imagePrompt || regenerationMedia.title || '').trim()
             : await prompts.buildImagePrompt(st, {
                 signal: status.signal,
                 targetMessage: sourceMessage,
                 castSelection: requestedCast,
+                imageProfile,
+                dimensions: dims,
             });
-        if (!regenerationMedia) imagePrompt = appendVisualStyle(imagePrompt, st);
         if (regenerationMedia && !imagePrompt) {
             throw new Error('This gallery image has no saved ComfyVideo prompt and cannot be regenerated.');
         }
@@ -1129,13 +1153,14 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
             prompt: imagePrompt,
             meta: {
                 imagePrompt,
+                imageProfile,
                 imagePromptKind: promptVariant.kind,
                 imagePromptPresetId: promptVariant.id,
                 imagePromptPresetName: promptVariant.name,
                 imageWorkflow,
-                imageWorkflowId: savedRecipe?.imageWorkflowId || st.activeImageWorkflowId,
+                imageWorkflowId,
                 imageWorkflowName: savedRecipe?.imageWorkflowName
-                    || findItem(st.libraries.imageWorkflows, st.activeImageWorkflowId)?.name
+                    || findItem(st.libraries.imageWorkflows, imageWorkflowId)?.name
                     || '',
                 seed,
                 negativePrompt: savedRecipe?.negativePrompt ?? st.negativePrompt,
@@ -1508,6 +1533,7 @@ function injectMessageActions() {
 }
 
 function setupMessageHooks() {
+    setupImageWorkflowCaptions(getContext);
     const events = [
         event_types.CHARACTER_MESSAGE_RENDERED,
         event_types.USER_MESSAGE_RENDERED,

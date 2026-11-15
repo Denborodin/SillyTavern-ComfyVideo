@@ -139,6 +139,17 @@
     min-height: 0;
 }
 
+#comfyvideo_workflow_editor_image_options {
+    margin-bottom: 0.75em;
+    min-width: 0;
+}
+
+#comfyvideo_workflow_editor_image_profile {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+
 .comfyvideo_workflow_editor_workflow_container {
     flex: 1 1 auto;
     min-width: 0;
@@ -178,6 +189,23 @@
 
 .comfyvideo_workflow_editor_placeholder_list > li.comfyvideo_workflow_editor_not_found:before {
     content: "❌ ";
+}
+
+#chat .comfyvideo-image {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    max-width: 100%;
+    min-width: 0;
+    margin: 0;
+}
+
+#chat .comfyvideo-workflow-caption {
+    max-width: 100%;
+    padding-top: 0.3em;
+    font-size: 0.85em;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
 }
 
 /* Per-message I2V button */

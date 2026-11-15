@@ -8,6 +8,11 @@ const manifest = JSON.parse(readFileSync(new URL('../workflows/manifest.json', i
 const bundled = manifest.workflows.map(item => ({ ...item,
     json: readFileSync(new URL(`../workflows/${item.file}`, import.meta.url), 'utf8') }));
 const turbo = bundled.find(item => item.id === 'builtin.video.minimax-h3-i2v-turbo');
+const retiredFlux = {
+    id: 'retired-flux', name: 'FLUX.2 Klein 9B',
+    json: readFileSync(new URL('./fixtures/retired-flux-2-klein-9b.json', import.meta.url), 'utf8'),
+    source: { type: 'bundled', bundledId: 'builtin.image.flux-2-klein-9b', bundledVersion: 1 },
+};
 
 test('all bundled workflows have valid links and their declared placeholders', () => {
     for (const item of bundled) {
@@ -82,4 +87,145 @@ test('fresh installs select Turbo A as the bundled video default', () => {
     seedBundledWorkflows(st, bundled);
     assert.equal(st.i2vWorkflow, turbo.json);
     assert.equal(st.libraries.i2vWorkflows.find(item => item.id === st.activeI2vWorkflowId).source.bundledVersion, 2);
+});
+
+test('retired FLUX default is removed from saved libraries and cannot be restored', () => {
+    const st = { libraries: { imageWorkflows: [], i2vWorkflows: [] } };
+    seedBundledWorkflows(st, bundled);
+    const videoBefore = structuredClone(st.libraries.i2vWorkflows);
+    const selectionBefore = [st.activeImageWorkflowId, st.imageWorkflow, st.activeI2vWorkflowId, st.i2vWorkflow];
+    // Saved JSON may have been pretty-printed or had its node keys reordered.
+    const graph = JSON.parse(retiredFlux.json);
+    const reformatted = JSON.stringify(Object.fromEntries(Object.entries(graph).reverse()), null, 4);
+    st.libraries.imageWorkflows.push({ ...retiredFlux, json: reformatted });
+    st.installedBundledWorkflowVersions[retiredFlux.source.bundledId] = 1;
+    assert.deepEqual(seedBundledWorkflows(st, bundled), { added: 0, changed: true });
+    assert.equal(st.libraries.imageWorkflows.some(entry => entry.id === retiredFlux.id), false);
+    assert.deepEqual(st.libraries.i2vWorkflows, videoBefore);
+    assert.deepEqual([st.activeImageWorkflowId, st.imageWorkflow, st.activeI2vWorkflowId, st.i2vWorkflow], selectionBefore);
+    const reloaded = JSON.parse(JSON.stringify(st));
+    assert.deepEqual(seedBundledWorkflows(reloaded, bundled, true), { added: 0, changed: false });
+    assert.equal(reloaded.libraries.imageWorkflows.some(entry => entry.source?.bundledId === retiredFlux.source.bundledId), false);
+});
+
+test('retirement preserves edited, renamed, imported, and newer FLUX copies', () => {
+    const graph = JSON.parse(retiredFlux.json);
+    graph['8'].inputs.steps = 8;
+    const entries = [
+        { ...retiredFlux, id: 'edited', json: JSON.stringify(graph) },
+        { ...retiredFlux, id: 'renamed', name: 'My FLUX' },
+        { ...retiredFlux, id: 'imported', source: undefined },
+        { ...retiredFlux, id: 'newer', source: { ...retiredFlux.source, bundledVersion: 2 } },
+        { ...retiredFlux, id: 'invalid', json: '{unfinished edit' },
+    ];
+    const st = { libraries: { imageWorkflows: structuredClone(entries), i2vWorkflows: [] } };
+    seedBundledWorkflows(st, bundled);
+    assert.deepEqual(st.libraries.imageWorkflows.slice(0, entries.length), entries);
+});
+
+test('retiring the active default selects an available image workflow and persists it', () => {
+    const st = { libraries: { imageWorkflows: [structuredClone(retiredFlux)], i2vWorkflows: [] },
+        activeImageWorkflowId: retiredFlux.id, imageWorkflow: retiredFlux.json };
+    seedBundledWorkflows(st, bundled);
+    const active = st.libraries.imageWorkflows.find(entry => entry.id === st.activeImageWorkflowId);
+    assert.ok(active);
+    assert.notEqual(active.id, retiredFlux.id);
+    assert.equal(st.imageWorkflow, active.json);
+    const reloaded = JSON.parse(JSON.stringify(st));
+    seedBundledWorkflows(reloaded, bundled);
+    assert.equal(reloaded.activeImageWorkflowId, active.id);
+    assert.equal(reloaded.imageWorkflow, active.json);
+});
+
+test('retirement preserves active workflow edits not yet copied into the library', () => {
+    const st = { libraries: { imageWorkflows: [structuredClone(retiredFlux)], i2vWorkflows: [] },
+        activeImageWorkflowId: retiredFlux.id, imageWorkflow: '{editing in progress' };
+    seedBundledWorkflows(st, bundled);
+    assert.deepEqual(st.libraries.imageWorkflows[0], retiredFlux);
+    assert.equal(st.activeImageWorkflowId, retiredFlux.id);
+    assert.equal(st.imageWorkflow, '{editing in progress');
+});
+
+const zit = bundled.find(item => item.id === 'builtin.image.z-image-turbo');
+const zitV1 = readFileSync(new URL('./fixtures/z-image-turbo-v1.json', import.meta.url), 'utf8');
+
+test('ZIT uses one guided-positive pass with only the selected seed and no custom nodes', () => {
+    const nodes = parseWorkflow(zit.json);
+    const samplers = Object.values(nodes).filter(node => /Sampler/.test(node.class_type));
+    assert.equal(samplers.length, 1);
+    assert.equal(samplers[0].class_type, 'KSampler');
+    assert.equal(samplers[0].inputs.steps, 8);
+    assert.equal(samplers[0].inputs.cfg, 1);
+    assert.equal(samplers[0].inputs.sampler_name, 'res_multistep');
+    assert.equal(samplers[0].inputs.scheduler, 'simple');
+    assert.equal(nodes[samplers[0].inputs.model[0]].inputs.shift, 3);
+    assert.equal(nodes[samplers[0].inputs.negative[0]].class_type, 'ConditioningZeroOut');
+    assert.ok(Object.values(nodes).every(node => node.class_type !== 'easy int'));
+    for (const seed of [42, 98765]) {
+        const filled = JSON.parse(fillPlaceholders(zit.json, { prompt: 'A person', seed, width: 864, height: 1152 }));
+        assert.equal(Object.values(filled).find(node => node.class_type === 'KSampler').inputs.seed, seed);
+    }
+});
+
+test('standard Krea is available alongside the unchanged KNP configuration', () => {
+    const standard = parseWorkflow(bundled.find(item => item.id === 'builtin.image.krea-2-turbo-standard').json);
+    const knp = parseWorkflow(bundled.find(item => item.id === 'builtin.image.krea-2-turbo').json);
+    assert.ok(Object.values(standard).every(node => !/Lora/.test(node.class_type)));
+    const sampler = Object.values(standard).find(node => node.class_type === 'KSampler');
+    assert.equal(sampler.inputs.steps, 8);
+    assert.equal(sampler.inputs.cfg, 1);
+    assert.equal(sampler.inputs.sampler_name, 'euler');
+    assert.equal(knp['30:3'].inputs.steps, 12);
+    assert.equal(knp['30:31'].inputs.lora_name, 'KNPV4.1_pre.safetensors');
+    assert.equal(knp['30:31'].inputs.strength_model, 1);
+});
+
+test('untouched ZIT v1 and the legacy single workflow upgrade without changing selection', () => {
+    for (const legacy of [false, true]) {
+        const entry = { id: 'old-zit', name: legacy ? 'Current image workflow' : 'Z-Image Turbo', json: zitV1,
+            ...(legacy ? {} : { source: { type: 'bundled', bundledId: zit.id, bundledVersion: 1 } }) };
+        const st = { libraries: { imageWorkflows: [entry], i2vWorkflows: [] }, activeImageWorkflowId: entry.id,
+            imageWorkflow: zitV1, installedBundledWorkflowVersions: { [zit.id]: 1 } };
+        seedBundledWorkflows(st, [zit]);
+        assert.equal(st.libraries.imageWorkflows.length, 1);
+        assert.equal(st.activeImageWorkflowId, entry.id);
+        assert.equal(st.imageWorkflow, zit.json);
+        assert.equal(entry.imageProfile, 'zit');
+        const reloaded = JSON.parse(JSON.stringify(st));
+        assert.deepEqual(seedBundledWorkflows(reloaded, [zit]), { added: 0, changed: false });
+    }
+});
+
+test('edited, renamed and unsaved ZIT v1 copies remain selected when v2 is added', () => {
+    for (const change of ['graph', 'name', 'unsaved']) {
+        const graph = JSON.parse(zitV1);
+        if (change === 'graph') graph['29'].inputs.steps = 20;
+        const entry = { id: 'custom-zit', name: change === 'name' ? 'My ZIT' : 'Z-Image Turbo',
+            json: JSON.stringify(graph), source: { type: 'bundled', bundledId: zit.id, bundledVersion: 1 } };
+        const activeJson = change === 'unsaved' ? '{unfinished edit' : entry.json;
+        const st = { libraries: { imageWorkflows: [structuredClone(entry)], i2vWorkflows: [] },
+            activeImageWorkflowId: entry.id, imageWorkflow: activeJson,
+            installedBundledWorkflowVersions: { [zit.id]: 1 } };
+        seedBundledWorkflows(st, [zit]);
+        assert.equal(st.libraries.imageWorkflows[0].json, entry.json);
+        assert.equal(st.libraries.imageWorkflows[0].name, entry.name);
+        assert.equal(st.imageWorkflow, activeJson);
+        assert.equal(st.activeImageWorkflowId, entry.id);
+        assert.equal(st.libraries.imageWorkflows[1].json, zit.json);
+    }
+});
+
+test('the untouched legacy and bundled ZIT pair becomes one entry, keeping the active ID', () => {
+    for (const activeId of ['legacy', 'bundle']) {
+        const st = { libraries: { imageWorkflows: [
+            { id: 'legacy', name: 'Current image workflow', json: zitV1 },
+            { id: 'bundle', name: 'Z-Image Turbo', json: zitV1,
+                source: { type: 'bundled', bundledId: zit.id, bundledVersion: 1 } },
+        ], i2vWorkflows: [] }, activeImageWorkflowId: activeId, imageWorkflow: zitV1 };
+        seedBundledWorkflows(st, [zit]);
+        assert.equal(st.libraries.imageWorkflows.length, 1);
+        assert.equal(st.libraries.imageWorkflows[0].id, activeId);
+        assert.equal(st.activeImageWorkflowId, activeId);
+        assert.equal(st.imageWorkflow, zit.json);
+    }
 });

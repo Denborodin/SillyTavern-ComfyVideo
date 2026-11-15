@@ -3,23 +3,19 @@
   "workflows": [
     {
       "id": "builtin.image.z-image-turbo",
-      "version": 1,
-      "name": "Z-Image Turbo",
+      "version": 2,
+      "name": "Z-Image Turbo v2",
       "kind": "image",
       "file": "image/z-image-turbo.json",
-      "description": "Z-Image Turbo text-to-image workflow extracted from the tested local ComfyVideo setup.",
-      "requiredPlaceholders": ["%prompt%", "%seed%", "%width%", "%height%"],
-      "optionalPlaceholders": ["%negative_prompt%"]
-    },
-    {
-      "id": "builtin.image.flux-2-klein-9b",
-      "version": 1,
-      "name": "FLUX.2 Klein 9B",
-      "kind": "image",
-      "file": "image/flux-2-klein-9b.json",
-      "description": "Official-parameter FLUX.2 Klein 9B distilled text-to-image workflow using the locally installed FP8 model.",
-      "requiredPlaceholders": ["%prompt%", "%seed%", "%width%", "%height%"],
-      "optionalPlaceholders": []
+      "description": "Standard Z-Image Turbo: 8 res_multistep/simple steps, CFG 1, shift 3, one sampler and runtime seed.",
+      "requiredPlaceholders": [
+        "%prompt%",
+        "%seed%",
+        "%width%",
+        "%height%"
+      ],
+      "optionalPlaceholders": [],
+      "imageProfile": "zit"
     },
     {
       "id": "builtin.image.krea-2-turbo",
@@ -28,8 +24,48 @@
       "kind": "image",
       "file": "image/krea-2-turbo.json",
       "description": "Krea 2 Turbo text-to-image workflow using the tested local KNP V4.1 LoRA configuration.",
-      "requiredPlaceholders": ["%prompt%", "%seed%", "%width%", "%height%"],
+      "requiredPlaceholders": [
+        "%prompt%",
+        "%seed%",
+        "%width%",
+        "%height%"
+      ],
+      "optionalPlaceholders": [],
+      "imageProfile": "krea"
+    },
+    {
+      "id": "builtin.image.krea-2-turbo-standard",
+      "version": 1,
+      "name": "Krea 2 Turbo — Standard",
+      "kind": "image",
+      "file": "image/krea-2-turbo-standard.json",
+      "description": "Krea 2 Turbo without LoRA: 8 Euler/simple steps at CFG 1.",
+      "imageProfile": "krea",
+      "requiredPlaceholders": [
+        "%prompt%",
+        "%seed%",
+        "%width%",
+        "%height%"
+      ],
       "optionalPlaceholders": []
+    },
+    {
+      "id": "builtin.image.moss-image-sft",
+      "version": 1,
+      "name": "MOSS-Image SFT",
+      "kind": "image",
+      "file": "image/moss-image-sft.json",
+      "description": "MOSS-Image SFT text-to-image workflow using native ComfyUI loaders and the INT8 diffusion model.",
+      "requiredPlaceholders": [
+        "%prompt%",
+        "%seed%",
+        "%width%",
+        "%height%"
+      ],
+      "optionalPlaceholders": [
+        "%negative_prompt%"
+      ],
+      "imageProfile": "moss"
     },
     {
       "id": "builtin.video.minimax-h3-i2v-turbo",
@@ -39,7 +75,15 @@
       "file": "video/minimax-h3-i2v-turbo.json",
       "description": "MiniMax H3 Turbo A API workflow with Turbo v4 600 EMA LoRA, H3 SLA attention, 8-step simple sampling, and direct first-frame input.",
       "default": true,
-      "requiredPlaceholders": ["%image%", "%prompt%", "%seed%", "%frames%", "%fps%", "%width%", "%height%"],
+      "requiredPlaceholders": [
+        "%image%",
+        "%prompt%",
+        "%seed%",
+        "%frames%",
+        "%fps%",
+        "%width%",
+        "%height%"
+      ],
       "optionalPlaceholders": []
     },
     {
@@ -49,8 +93,18 @@
       "kind": "i2v",
       "file": "video/minimax-h3-i2v.json",
       "description": "Fallback MiniMax H3 image-to-video workflow without Turbo LoRA. Uses 20 res_multistep steps.",
-      "requiredPlaceholders": ["%image%", "%prompt%", "%seed%", "%frames%", "%fps%", "%width%", "%height%"],
-      "optionalPlaceholders": ["%negative_prompt%"]
+      "requiredPlaceholders": [
+        "%image%",
+        "%prompt%",
+        "%seed%",
+        "%frames%",
+        "%fps%",
+        "%width%",
+        "%height%"
+      ],
+      "optionalPlaceholders": [
+        "%negative_prompt%"
+      ]
     }
   ]
 }

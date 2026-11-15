@@ -191,6 +191,23 @@
     content: "❌ ";
 }
 
+#chat .comfyvideo-image {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    max-width: 100%;
+    min-width: 0;
+    margin: 0;
+}
+
+#chat .comfyvideo-workflow-caption {
+    max-width: 100%;
+    padding-top: 0.3em;
+    font-size: 0.85em;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
 /* Per-message I2V button */
 .mes_button.comfyvideo-i2v-btn {
     cursor: pointer;

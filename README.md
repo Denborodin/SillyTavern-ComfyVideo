@@ -53,6 +53,9 @@ Image generation from a message's quickbar uses that message as its reference
 and inserts the result immediately after it. The global ComfyVideo menu uses
 the latest roleplay message and follows the attachment setting (New message
 appends at the end). Quick Regen adds another image to the existing gallery.
+Image captions and attachment titles include the workflow name; Quick Regen
+keeps the workflow name from the selected image's saved recipe.
+The name stays visible below each image when switching gallery items.
 
 The panel shows the reference message number, actual output dimensions, and
 attachment destination. References survive earlier message insertions; changing

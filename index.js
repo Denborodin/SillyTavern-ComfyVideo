@@ -42,6 +42,7 @@ import {
     getMessageImageUrl,
     isComfyVideoMessage,
     isVideoFormat,
+    setupImageWorkflowCaptions,
 } from './lib/media.js';
 import {
     findLastRoleplayMessage,
@@ -1028,6 +1029,9 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
         toastr.error('Add an Image workflow (library → Edit / Save as…).');
         return;
     }
+    const imageWorkflowId = savedRecipe?.imageWorkflow
+        ? (savedRecipe.imageWorkflowId || '')
+        : st.activeImageWorkflowId;
 
     const sourceSignature = messageSignature(sourceMessage);
     const requireLatestRoleplay = !clickedSpecificMessage;
@@ -1154,9 +1158,9 @@ async function generateSceneImage(promptKind = 'scene', opts = {}) {
                 imagePromptPresetId: promptVariant.id,
                 imagePromptPresetName: promptVariant.name,
                 imageWorkflow,
-                imageWorkflowId: savedRecipe?.imageWorkflowId || st.activeImageWorkflowId,
+                imageWorkflowId,
                 imageWorkflowName: savedRecipe?.imageWorkflowName
-                    || findItem(st.libraries.imageWorkflows, st.activeImageWorkflowId)?.name
+                    || findItem(st.libraries.imageWorkflows, imageWorkflowId)?.name
                     || '',
                 seed,
                 negativePrompt: savedRecipe?.negativePrompt ?? st.negativePrompt,
@@ -1529,6 +1533,7 @@ function injectMessageActions() {
 }
 
 function setupMessageHooks() {
+    setupImageWorkflowCaptions(getContext);
     const events = [
         event_types.CHARACTER_MESSAGE_RENDERED,
         event_types.USER_MESSAGE_RENDERED,
